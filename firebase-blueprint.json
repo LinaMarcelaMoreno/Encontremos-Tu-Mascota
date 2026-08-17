@@ -1,0 +1,38 @@
+{
+  "collections": {
+    "pets": {
+      "fields": {
+        "id": { "type": "string" },
+        "tipo": { "type": "string" },
+        "estado": { "type": "string" },
+        "nombre": { "type": "string" },
+        "cedula": { "type": "string" },
+        "llave": { "type": "string" },
+        "especie": { "type": "string" },
+        "raza": { "type": "string" },
+        "color": { "type": "string" },
+        "tamano": { "type": "string" },
+        "departamento": { "type": "string" },
+        "ciudad": { "type": "string" },
+        "ubicacion": { "type": "string" },
+        "contacto": { "type": "string" },
+        "telefono": { "type": "string" },
+        "correo": { "type": "string" },
+        "foto": { "type": "string" },
+        "detalles": { "type": "string" },
+        "fecha": { "type": "string" },
+        "createdAt": { "type": "timestamp" },
+        "resolveToken": { "type": "string" }
+      }
+    },
+    "alert_logs": {
+      "fields": {
+        "type": { "type": "string" },
+        "timestamp": { "type": "timestamp" },
+        "recipientsCount": { "type": "number" },
+        "matchesCount": { "type": "number" },
+        "details": { "type": "string" }
+      }
+    }
+  }
+}

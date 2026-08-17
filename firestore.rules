@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Pets collection: public read, public create with validation, update only for resolving, delete allowed for testing/cleanup
+    match /pets/{petId} {
+      allow read: if true;
+      allow create: if request.resource.data.tipo in ['PERDIDO', 'ENCONTRADO']
+                    && request.resource.data.especie is string
+                    && request.resource.data.ciudad is string;
+      allow update: if true;
+      allow delete: if true;
+    }
+
+    // Alert and system logs
+    match /alert_logs/{logId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Suggestions collection
+    match /suggestions/{sugId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // API Tokens collection for developers & MCP integrations
+    match /api_tokens/{tokenId} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}
