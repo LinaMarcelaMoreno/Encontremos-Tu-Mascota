@@ -69,6 +69,7 @@ export interface MatchPair {
 
 export type ActiveTab = 'lost' | 'found' | 'gallery' | 'suggestions' | 'admin';
 export type GalleryViewMode = 'all' | 'PERDIDO' | 'ENCONTRADO' | 'matches';
+export type UserRole = 'public' | 'editor' | 'admin';
 
 export interface SuggestionRecord {
   id: string;

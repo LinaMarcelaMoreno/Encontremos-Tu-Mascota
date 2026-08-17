@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, getDocs } from 'firebase/firestore';
 import { db } from './lib/firebase';
-import { PetRecord, ActiveTab, GalleryViewMode, PetStatus, SuggestionRecord } from './types';
+import { PetRecord, ActiveTab, GalleryViewMode, PetStatus, SuggestionRecord, UserRole } from './types';
 import { Navbar } from './components/Navbar';
 import { LostPetForm } from './components/LostPetForm';
 import { FoundPetForm } from './components/FoundPetForm';
@@ -20,6 +20,10 @@ export default function App() {
   const [suggestions, setSuggestions] = useState<SuggestionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>('gallery');
+  const [currentRole, setCurrentRole] = useState<UserRole>(() => {
+    const saved = localStorage.getItem('app_auth_role') as UserRole;
+    return saved === 'admin' || saved === 'editor' ? saved : 'public';
+  });
 
   // Filter state (default: all to avoid blocking view on initial load)
   const [selectedDept, setSelectedDept] = useState<string>('all');
@@ -614,6 +618,11 @@ export default function App() {
         activeTab={activeTab}
         onSelectTab={(tab) => setActiveTab(tab)}
         activeCount={activePetsCount}
+        currentRole={currentRole}
+        onLogout={() => {
+          localStorage.removeItem('app_auth_role');
+          setCurrentRole('public');
+        }}
       />
 
       {/* Main App Body */}
@@ -670,7 +679,7 @@ export default function App() {
               <SuggestionsView onSubmitSuggestion={handleCreateSuggestion} />
             )}
 
-            {/* Tab 5: Admin Dashboard */}
+            {/* Tab 5: Admin Dashboard / Editor Portal */}
             {activeTab === 'admin' && (
               <AdminDashboard
                 pets={pets}
@@ -684,6 +693,8 @@ export default function App() {
                 onDeleteSuggestion={handleDeleteSuggestion}
                 onSearchByTraits={handleSearchByTraits}
                 onOpenEditPet={(pet) => setEditPet(pet)}
+                currentRole={currentRole}
+                onRoleChange={(role) => setCurrentRole(role)}
               />
             )}
           </>
@@ -722,11 +733,12 @@ export default function App() {
         onConfirmResolve={handleConfirmResolve}
       />
 
-      {/* Edit Pet Modal (Protected by Cedula/Phone + Correo or Admin) */}
+      {/* Edit Pet Modal (Protected by Cedula/Phone + Correo or Editor/Admin Key) */}
       <EditPetModal
         pet={editPet}
         isOpen={Boolean(editPet)}
-        isAdmin={activeTab === 'admin'}
+        isAdmin={currentRole === 'admin'}
+        isEditor={currentRole === 'editor'}
         onClose={() => setEditPet(null)}
         onUpdatePet={handleUpdatePetData}
         onMarkAsResolved={handleMarkResolvedDirect}

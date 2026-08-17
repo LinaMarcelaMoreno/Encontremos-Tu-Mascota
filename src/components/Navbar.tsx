@@ -1,19 +1,23 @@
 import React, { useState, useRef } from 'react';
-import { ActiveTab } from '../types';
-import { AlertTriangle, PlusCircle, Sparkles, PawPrint, Lightbulb } from 'lucide-react';
+import { ActiveTab, UserRole } from '../types';
+import { AlertTriangle, PlusCircle, Sparkles, PawPrint, Lightbulb, ShieldCheck, Edit3, Lock, LogOut } from 'lucide-react';
 
 interface NavbarProps {
   activeTab: ActiveTab;
   onSelectTab: (tab: ActiveTab) => void;
   activeCount: number;
   onSecretAdminTrigger?: () => void;
+  currentRole?: UserRole;
+  onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   onSelectTab,
   activeCount,
-  onSecretAdminTrigger
+  onSecretAdminTrigger,
+  currentRole = 'public',
+  onLogout
 }) => {
   const clickTimestampsRef = useRef<number[]>([]);
 
@@ -44,11 +48,11 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col md:flex-row items-center justify-between gap-3">
-        {/* Brand & Solidario badge (Click 3 times on the paw or text to open Admin) */}
+        {/* Brand & Solidario badge */}
         <div
           className="flex items-center space-x-3 cursor-pointer select-none group"
           onClick={handleLogoClick}
-          title="Encontremos Tu Mascota Colombia (Toca 3 veces para Admin)"
+          title="Encontremos Tu Mascota Colombia"
         >
           <div className="w-10 h-10 rounded-xl bg-blue-800 flex items-center justify-center shadow-inner border border-blue-700/50 transition transform group-active:scale-95">
             <PawPrint className="w-6 h-6 text-yellow-400" />
@@ -73,7 +77,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Navigation Tabs - Clean, public only with vector icons */}
+        {/* Navigation Tabs */}
         <nav className="flex flex-wrap justify-center items-center gap-1.5 sm:gap-2 text-xs font-medium bg-slate-950/80 p-1.5 rounded-xl border border-slate-800">
           <button
             id="nav-lost-btn"
@@ -129,6 +133,64 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Lightbulb className="w-4 h-4 text-yellow-400 shrink-0" />
             <span>Tu Sugerencia Importa</span>
           </button>
+
+          {/* Access / Role indicator */}
+          {currentRole === 'admin' ? (
+            <div className="flex items-center gap-1 bg-blue-900/80 border border-blue-600/50 rounded-lg p-0.5">
+              <button
+                onClick={() => onSelectTab('admin')}
+                className={`px-2.5 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5 transition ${
+                  activeTab === 'admin' ? 'bg-yellow-400 text-blue-950 shadow-sm' : 'text-yellow-300 hover:bg-blue-800'
+                }`}
+                title="Panel de Super Administrador"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Admin</span>
+              </button>
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="p-1.5 text-stone-300 hover:text-white hover:bg-red-900/60 rounded-md transition"
+                  title="Cerrar sesión de Administrador"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ) : currentRole === 'editor' ? (
+            <div className="flex items-center gap-1 bg-emerald-900/80 border border-emerald-600/50 rounded-lg p-0.5">
+              <button
+                onClick={() => onSelectTab('admin')}
+                className={`px-2.5 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5 transition ${
+                  activeTab === 'admin' ? 'bg-emerald-400 text-slate-950 shadow-sm' : 'text-emerald-200 hover:bg-emerald-800'
+                }`}
+                title="Panel de Editor de Registros"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Editor</span>
+              </button>
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="p-1.5 text-stone-300 hover:text-white hover:bg-red-900/60 rounded-md transition"
+                  title="Cerrar sesión de Editor"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={() => onSelectTab('admin')}
+              className={`px-2.5 py-2 rounded-lg transition-all flex items-center gap-1 font-semibold text-stone-400 hover:text-white hover:bg-slate-800 ${
+                activeTab === 'admin' ? 'bg-slate-800 text-white font-bold' : ''
+              }`}
+              title="Gestión de Registros"
+            >
+              <Edit3 className="w-3.5 h-3.5 text-stone-400" />
+              <span>Gestión</span>
+            </button>
+          )}
         </nav>
       </div>
     </header>

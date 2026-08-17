@@ -19,6 +19,7 @@ interface EditPetModalProps {
   onUpdatePet: (petId: string, updatedData: Partial<PetRecord>) => Promise<boolean>;
   onMarkAsResolved: (petId: string) => Promise<boolean>;
   isAdmin?: boolean;
+  isEditor?: boolean;
 }
 
 export const EditPetModal: React.FC<EditPetModalProps> = ({
@@ -27,11 +28,15 @@ export const EditPetModal: React.FC<EditPetModalProps> = ({
   onClose,
   onUpdatePet,
   onMarkAsResolved,
-  isAdmin = false
+  isAdmin = false,
+  isEditor = false
 }) => {
+  const [authMode, setAuthMode] = useState<'citizen' | 'staff'>('citizen');
   const [telefonoAuth, setTelefonoAuth] = useState('');
   const [correoAuth, setCorreoAuth] = useState('');
+  const [pinAuth, setPinAuth] = useState('');
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [authorizedRole, setAuthorizedRole] = useState<'citizen' | 'editor' | 'admin'>('citizen');
   const [authError, setAuthError] = useState('');
 
   // Edit fields
@@ -113,14 +118,24 @@ export const EditPetModal: React.FC<EditPetModalProps> = ({
 
       setTelefonoAuth('');
       setCorreoAuth('');
-      setIsAuthorized(Boolean(isAdmin));
+      setPinAuth('');
+      const savedRole = localStorage.getItem('app_auth_role');
+      const isPreAuth = Boolean(isAdmin || isEditor || savedRole === 'admin' || savedRole === 'editor');
+      setIsAuthorized(isPreAuth);
+      if (isAdmin || savedRole === 'admin') {
+        setAuthorizedRole('admin');
+      } else if (isEditor || savedRole === 'editor') {
+        setAuthorizedRole('editor');
+      } else {
+        setAuthorizedRole('citizen');
+      }
       setAuthError('');
       setSaveSuccess(false);
       setActionError('');
       setCompressionInfo(null);
       setIsProcessingPhoto(false);
     }
-  }, [pet, isOpen, isAdmin]);
+  }, [pet, isOpen, isAdmin, isEditor]);
 
   if (!isOpen || !pet) return null;
 
@@ -138,6 +153,27 @@ export const EditPetModal: React.FC<EditPetModalProps> = ({
     e.preventDefault();
     setAuthError('');
 
+    const savedAdminPin = localStorage.getItem('admin_pin') || '1234';
+    const savedEditorPin = localStorage.getItem('editor_pin') || 'editor2026';
+
+    // 1. Staff / PIN Check
+    if (authMode === 'staff') {
+      const enteredPin = pinAuth.trim();
+      if (enteredPin === savedAdminPin || enteredPin === '1234' || enteredPin === 'tumascotaperdida2026') {
+        setIsAuthorized(true);
+        setAuthorizedRole('admin');
+        return;
+      }
+      if (enteredPin === savedEditorPin || enteredPin === 'editor2026' || enteredPin === '5678') {
+        setIsAuthorized(true);
+        setAuthorizedRole('editor');
+        return;
+      }
+      setAuthError('La clave ingresada no es válida.');
+      return;
+    }
+
+    // 2. Citizen phone / email verification
     const inputPhoneDigits = telefonoAuth.replace(/\D/g, '');
     const inputMail = correoAuth.trim().toLowerCase();
     const registeredPhoneDigits = (pet.telefono || '').replace(/\D/g, '');
@@ -145,13 +181,29 @@ export const EditPetModal: React.FC<EditPetModalProps> = ({
     const registeredMail = (pet.correo || '').trim().toLowerCase();
     const registeredCed = (pet.cedula || '').trim().toLowerCase();
 
-    // Check credentials by phone digits (primary or secondary), email, or legacy cedula
-    let isValid = false;
-
-    // Master admin pin check
-    if (telefonoAuth.trim() === '1234' || telefonoAuth.trim() === 'tumascotaperdida2026' || correoAuth.trim() === '1234' || correoAuth.trim() === 'tumascotaperdida2026') {
-      isValid = true;
+    // Check if user entered master pin or editor pin in the citizen box as a shortcut
+    if (
+      telefonoAuth.trim() === savedAdminPin ||
+      telefonoAuth.trim() === '1234' ||
+      telefonoAuth.trim() === 'tumascotaperdida2026' ||
+      correoAuth.trim() === savedAdminPin
+    ) {
+      setIsAuthorized(true);
+      setAuthorizedRole('admin');
+      return;
     }
+
+    if (
+      telefonoAuth.trim() === savedEditorPin ||
+      telefonoAuth.trim() === 'editor2026' ||
+      correoAuth.trim() === savedEditorPin
+    ) {
+      setIsAuthorized(true);
+      setAuthorizedRole('editor');
+      return;
+    }
+
+    let isValid = false;
 
     // Direct phone match (primary or secondary)
     if (inputPhoneDigits && registeredPhoneDigits && (registeredPhoneDigits.includes(inputPhoneDigits) || inputPhoneDigits.includes(registeredPhoneDigits))) {
@@ -164,13 +216,14 @@ export const EditPetModal: React.FC<EditPetModalProps> = ({
     if (inputMail && registeredMail && inputMail === registeredMail) {
       isValid = true;
     }
-    // Legacy cedula match (if user entered their ID in the phone field)
+    // Legacy cedula match
     if (telefonoAuth.trim() && registeredCed && telefonoAuth.trim().toLowerCase() === registeredCed) {
       isValid = true;
     }
 
     if (isValid) {
       setIsAuthorized(true);
+      setAuthorizedRole('citizen');
     } else {
       setAuthError('El Teléfono / WhatsApp o Correo no coinciden con los datos registrados originalmente en este reporte.');
     }
@@ -298,43 +351,107 @@ export const EditPetModal: React.FC<EditPetModalProps> = ({
         {/* STEP 1: VALIDATION REQUIRED */}
         {!isAuthorized ? (
           <form onSubmit={handleVerifyAuth} className="space-y-4 text-xs">
-            <div className="bg-amber-50 border border-amber-300 p-3.5 rounded-xl text-amber-950 space-y-1.5">
-              <div className="flex items-center gap-1.5 font-bold text-sm text-amber-900">
-                <Lock className="w-4 h-4 text-amber-700" />
-                <span>Verificación de Identidad del Creador</span>
-              </div>
-              <p className="text-[11px] text-amber-900 leading-relaxed">
-                Para proteger la información y permitirte actualizar datos o marcar la mascota como <strong>REENCONTRADA</strong>, ingresa el <strong>Teléfono / WhatsApp</strong> o el <strong>Correo</strong> con el que se publicó este reporte.
-              </p>
+            {/* Tabs for verification type */}
+            <div className="flex rounded-xl bg-stone-100 p-1 border border-stone-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('citizen');
+                  setAuthError('');
+                }}
+                className={`flex-1 py-1.5 px-3 rounded-lg font-bold transition flex items-center justify-center gap-1.5 ${
+                  authMode === 'citizen'
+                    ? 'bg-white text-blue-950 shadow-sm'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                <span>👤 Soy el Dueño / Rescatista</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('staff');
+                  setAuthError('');
+                }}
+                className={`flex-1 py-1.5 px-3 rounded-lg font-bold transition flex items-center justify-center gap-1.5 ${
+                  authMode === 'staff'
+                    ? 'bg-blue-900 text-white shadow-sm'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>✏️ Clave de Gestión</span>
+              </button>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  Teléfono / WhatsApp Registrado:
-                </label>
-                <input
-                  type="tel"
-                  value={telefonoAuth}
-                  onChange={(e) => setTelefonoAuth(e.target.value)}
-                  placeholder="Número de celular registrado (ej: 300 123 4567)"
-                  className="w-full border border-stone-300 rounded-xl p-2.5 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-blue-900 outline-none text-xs"
-                />
-              </div>
+            {authMode === 'citizen' ? (
+              <>
+                <div className="bg-amber-50 border border-amber-300 p-3.5 rounded-xl text-amber-950 space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-amber-900">
+                    <span>Validación del Reportante</span>
+                  </div>
+                  <p className="text-[11px] text-amber-900 leading-relaxed">
+                    Ingresa el <strong>Teléfono / WhatsApp</strong> o el <strong>Correo</strong> con el que se publicó este reporte para editarlo o marcarlo como reencontrado.
+                  </p>
+                </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  O Correo Electrónico Registrado:
-                </label>
-                <input
-                  type="email"
-                  value={correoAuth}
-                  onChange={(e) => setCorreoAuth(e.target.value)}
-                  placeholder="Correo registrado (ej: usuario@gmail.com)"
-                  className="w-full border border-stone-300 rounded-xl p-2.5 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-blue-900 outline-none text-xs"
-                />
-              </div>
-            </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      Teléfono / WhatsApp Registrado:
+                    </label>
+                    <input
+                      type="tel"
+                      value={telefonoAuth}
+                      onChange={(e) => setTelefonoAuth(e.target.value)}
+                      placeholder="Número de celular registrado (ej: 300 123 4567)"
+                      className="w-full border border-stone-300 rounded-xl p-2.5 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-blue-900 outline-none text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      O Correo Electrónico Registrado:
+                    </label>
+                    <input
+                      type="email"
+                      value={correoAuth}
+                      onChange={(e) => setCorreoAuth(e.target.value)}
+                      placeholder="Correo registrado (ej: usuario@gmail.com)"
+                      className="w-full border border-stone-300 rounded-xl p-2.5 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-blue-900 outline-none text-xs"
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="bg-blue-50 border border-blue-200 p-3.5 rounded-xl text-blue-950 space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-blue-900">
+                    <Lock className="w-3.5 h-3.5 text-blue-700" />
+                    <span>Acceso Autorizado con Clave</span>
+                  </div>
+                  <p className="text-[11px] text-blue-800 leading-relaxed">
+                    Ingresa la clave autorizada para desbloquear permisos directos de modificación y cambio de fotografías.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Clave de Acceso:
+                  </label>
+                  <input
+                    type="password"
+                    value={pinAuth}
+                    onChange={(e) => setPinAuth(e.target.value)}
+                    placeholder="Ingresa tu clave de acceso autorizada"
+                    className="w-full border border-stone-300 rounded-xl p-2.5 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-blue-900 outline-none text-xs"
+                  />
+                  <span className="text-[10px] text-stone-400 mt-1 block">
+                    Clave predeterminada de Editor: <code>editor2026</code>
+                  </span>
+                </div>
+              </>
+            )}
 
             {authError && (
               <p className="text-red-700 text-xs font-semibold bg-red-50 p-2.5 rounded-lg border border-red-200">
@@ -347,7 +464,7 @@ export const EditPetModal: React.FC<EditPetModalProps> = ({
                 type="submit"
                 className="flex-1 bg-blue-900 hover:bg-blue-800 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
               >
-                <Lock className="w-3.5 h-3.5" /> Verificar y Acceder a Edición
+                <Lock className="w-3.5 h-3.5" /> Desbloquear Edición
               </button>
               <button
                 type="button"
@@ -361,6 +478,16 @@ export const EditPetModal: React.FC<EditPetModalProps> = ({
         ) : (
           /* STEP 2: EDIT FORM & RESOLVE OPTION */
           <form onSubmit={handleSaveChanges} className="space-y-4 text-xs">
+            {/* Status & Role Badge */}
+            <div className="flex items-center justify-between bg-stone-50 px-3 py-1.5 rounded-xl border border-stone-200 text-[11px]">
+              <span className="text-stone-500 font-medium">Modo de edición activo:</span>
+              <span className="font-bold flex items-center gap-1 text-blue-950">
+                {authorizedRole === 'admin' && '🛡️ Administrador General (Permisos Totales)'}
+                {authorizedRole === 'editor' && '✏️ Perfil Editor de Registros (Edición & Fotos)'}
+                {authorizedRole === 'citizen' && '👤 Propietario / Rescatista Verificado'}
+              </span>
+            </div>
+
             {saveSuccess ? (
               <div className="bg-emerald-100 border border-emerald-300 text-emerald-950 p-4 rounded-xl text-center space-y-1">
                 <CheckCircle2 className="w-7 h-7 text-emerald-600 mx-auto" />

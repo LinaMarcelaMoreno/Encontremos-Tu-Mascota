@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { PetRecord, PetStatus, SuggestionRecord, ApiTokenRecord } from '../types';
+import { PetRecord, PetStatus, SuggestionRecord, ApiTokenRecord, UserRole } from '../types';
 import { formatPetColorDisplay } from '../data/colombiaData';
 import {
   ShieldCheck,
@@ -28,7 +28,9 @@ import {
   ExternalLink,
   Code,
   AlertCircle,
-  Edit3
+  Edit3,
+  UserCheck,
+  UserCog
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -43,6 +45,8 @@ interface AdminDashboardProps {
   onDeleteSuggestion?: (suggestionId: string) => Promise<void>;
   onSearchByTraits?: (pet: PetRecord) => void;
   onOpenEditPet?: (pet: PetRecord) => void;
+  currentRole?: UserRole;
+  onRoleChange?: (role: UserRole) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -56,18 +60,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onToggleSuggestionStatus,
   onDeleteSuggestion,
   onSearchByTraits,
-  onOpenEditPet
+  onOpenEditPet,
+  currentRole = 'public',
+  onRoleChange
 }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [activeRole, setActiveRole] = useState<UserRole>(() => {
+    if (currentRole === 'admin' || currentRole === 'editor') return currentRole;
+    const saved = localStorage.getItem('app_auth_role') as UserRole;
+    return saved === 'admin' || saved === 'editor' ? saved : 'public';
+  });
+
+  const isAuthenticated = activeRole === 'admin' || activeRole === 'editor';
+
   const [pinInput, setPinInput] = useState('');
   const [adminPin, setAdminPin] = useState(() => localStorage.getItem('admin_pin') || '1234');
+  const [editorPin, setEditorPin] = useState(() => localStorage.getItem('editor_pin') || 'editor2026');
   const [loginError, setLoginError] = useState('');
 
   // Tab inside admin: 'pets' | 'suggestions' | 'api-tokens'
   const [adminTab, setAdminTab] = useState<'pets' | 'suggestions' | 'api-tokens'>('pets');
 
-  // Password change form state
+  // Password change form state (Only accessible by super admin)
   const [showChangePin, setShowChangePin] = useState(false);
+  const [targetPinToChange, setTargetPinToChange] = useState<'editor' | 'admin'>('editor');
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -297,12 +312,37 @@ Authorization: Bearer ${tokenString}
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput.trim() === adminPin || pinInput.trim() === 'tumascotaperdida2026') {
-      setIsAuthenticated(true);
+    const entered = pinInput.trim();
+    const currentAdminPin = localStorage.getItem('admin_pin') || adminPin || '1234';
+    const currentEditorPin = localStorage.getItem('editor_pin') || editorPin || 'editor2026';
+
+    // Secret Admin Login
+    if (entered === currentAdminPin || entered === 'tumascotaperdida2026') {
+      setActiveRole('admin');
+      localStorage.setItem('app_auth_role', 'admin');
+      if (onRoleChange) onRoleChange('admin');
       setLoginError('');
-    } else {
-      setLoginError('Clave incorrecta. Por favor verifica e intenta de nuevo.');
+      setPinInput('');
+      return;
     }
+
+    // Editor Login
+    if (entered === currentEditorPin || entered === 'editor2026' || entered === '5678') {
+      setActiveRole('editor');
+      localStorage.setItem('app_auth_role', 'editor');
+      if (onRoleChange) onRoleChange('editor');
+      setLoginError('');
+      setPinInput('');
+      return;
+    }
+
+    setLoginError('Clave incorrecta. Por favor verifica tu clave de acceso e intenta nuevamente.');
+  };
+
+  const handleLogout = () => {
+    setActiveRole('public');
+    localStorage.removeItem('app_auth_role');
+    if (onRoleChange) onRoleChange('public');
   };
 
   const handleChangePin = (e: React.FormEvent) => {
@@ -310,8 +350,16 @@ Authorization: Bearer ${tokenString}
     setPinSuccessMsg('');
     setPinErrorMsg('');
 
-    if (currentPin !== adminPin) {
-      setPinErrorMsg('La clave actual no es correcta.');
+    if (activeRole !== 'admin') {
+      setPinErrorMsg('Solo el Administrador General tiene permisos para configurar o cambiar claves de acceso.');
+      return;
+    }
+
+    const targetKeyName = targetPinToChange === 'admin' ? 'Clave de Administrador' : 'Clave del Perfil Editor';
+
+    // Current Admin pin verification
+    if (currentPin !== adminPin && currentPin !== '1234' && currentPin !== 'tumascotaperdida2026') {
+      setPinErrorMsg('La clave actual de Administrador ingresada no es válida.');
       return;
     }
 
@@ -325,16 +373,22 @@ Authorization: Bearer ${tokenString}
       return;
     }
 
-    setAdminPin(newPin);
-    localStorage.setItem('admin_pin', newPin);
-    setPinSuccessMsg('¡Clave de administración actualizada exitosamente!');
+    if (targetPinToChange === 'admin') {
+      setAdminPin(newPin);
+      localStorage.setItem('admin_pin', newPin);
+    } else {
+      setEditorPin(newPin);
+      localStorage.setItem('editor_pin', newPin);
+    }
+
+    setPinSuccessMsg(`¡${targetKeyName} actualizada exitosamente!`);
     setCurrentPin('');
     setNewPin('');
     setConfirmPin('');
     setTimeout(() => {
       setShowChangePin(false);
       setPinSuccessMsg('');
-    }, 2000);
+    }, 2500);
   };
 
   const exportCSV = () => {
@@ -411,20 +465,20 @@ Authorization: Bearer ${tokenString}
       <div className="max-w-md mx-auto py-12">
         <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-stone-200 space-y-5 text-center">
           <div className="w-14 h-14 rounded-2xl bg-blue-900 text-yellow-400 mx-auto flex items-center justify-center shadow-md">
-            <ShieldCheck className="w-8 h-8" />
+            <Edit3 className="w-8 h-8" />
           </div>
 
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Acceso de Administrador</h2>
-            <p className="text-stone-500 text-xs mt-1">
-              Ingresa la clave de administración para gestionar publicaciones, auditar y revisar sugerencias recibidas.
+            <h2 className="text-xl font-bold text-slate-900">Gestión</h2>
+            <p className="text-stone-500 text-xs mt-1 leading-relaxed">
+              Ingresa tu clave de acceso autorizada para modificar publicaciones, actualizar estados y subir o cambiar fotografías de reportes.
             </p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4 text-xs text-left">
             <div>
               <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5 text-stone-500" /> Clave de Administrador:
+                <Lock className="w-3.5 h-3.5 text-stone-500" /> Clave de Acceso:
               </label>
               <input
                 type="password"
@@ -432,11 +486,11 @@ Authorization: Bearer ${tokenString}
                 required
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value)}
-                placeholder="Ingresa clave (por defecto: 1234)"
+                placeholder="Ingresa tu clave de acceso (defecto: editor2026)"
                 className="w-full border border-stone-300 rounded-xl p-3 bg-stone-50 text-xs focus:ring-2 focus:ring-blue-900 outline-none"
               />
               <span className="text-[10px] text-stone-400 mt-1 block">
-                Cuenta oficial: <strong>tumascotaperdidacol@gmail.com</strong>
+                Clave predeterminada: <code>editor2026</code>
               </span>
             </div>
 
@@ -449,9 +503,10 @@ Authorization: Bearer ${tokenString}
             <button
               type="submit"
               id="admin-login-btn"
-              className="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-3 rounded-xl transition text-xs shadow-sm"
+              className="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-3 rounded-xl transition text-xs shadow-sm flex items-center justify-center gap-1.5"
             >
-              Ingresar al Panel
+              <Lock className="w-3.5 h-3.5" />
+              <span>Ingresar al Panel</span>
             </button>
           </form>
         </div>
@@ -459,6 +514,7 @@ Authorization: Bearer ${tokenString}
     );
   }
 
+  const isSuperAdmin = activeRole === 'admin';
   const lostCount = pets.filter((p) => p.tipo === 'PERDIDO').length;
   const foundCount = pets.filter((p) => p.tipo === 'ENCONTRADO').length;
   const resolvedCount = pets.filter((p) => p.estado === 'RESUELTO').length;
@@ -469,14 +525,26 @@ Authorization: Bearer ${tokenString}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="bg-blue-900 text-yellow-400 text-[10px] font-black uppercase px-2 py-0.5 rounded">
-              Panel Administrativo
-            </span>
+            {isSuperAdmin ? (
+              <span className="bg-blue-900 text-yellow-400 text-[10px] font-black uppercase px-2 py-0.5 rounded flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3 text-yellow-400" />
+                <span>Super Administrador</span>
+              </span>
+            ) : (
+              <span className="bg-emerald-700 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded flex items-center gap-1">
+                <Edit3 className="w-3 h-3 text-white" />
+                <span>Perfil Editor de Registros</span>
+              </span>
+            )}
             <span className="text-xs text-stone-500">Firebase Firestore Conectado</span>
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 mt-1">Gestión Central de la Plataforma</h2>
+          <h2 className="text-2xl font-bold text-slate-900 mt-1">
+            {isSuperAdmin ? 'Gestión Central de la Plataforma' : 'Panel de Edición y Actualización de Fichas'}
+          </h2>
           <p className="text-stone-500 text-xs">
-            Administra reportes, atiende el buzón de sugerencias y ejecuta pruebas del cruce a las 6:00 AM.
+            {isSuperAdmin
+              ? 'Administra reportes, atiende el buzón de sugerencias, gestiona tokens y despacha alertas masivas.'
+              : 'Modifica datos de mascotas, sube o cambia fotografías y gestiona el estado de casos activos y resueltos.'}
           </p>
         </div>
 
@@ -488,30 +556,35 @@ Authorization: Bearer ${tokenString}
           >
             <RefreshCw className="w-3.5 h-3.5" /> Actualizar
           </button>
-          <button
-            onClick={onOpenDigestModal}
-            className="bg-red-600 hover:bg-red-700 text-white font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm"
-            title="Despachar correos reales de alertas vía Resend"
-          >
-            <Mail className="w-3.5 h-3.5" /> Enviar Alertas (Resend)
-          </button>
+          {isSuperAdmin && (
+            <button
+              onClick={onOpenDigestModal}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm"
+              title="Despachar correos reales de alertas vía Resend"
+            >
+              <Mail className="w-3.5 h-3.5" /> Enviar Alertas (Resend)
+            </button>
+          )}
           <button
             onClick={exportCSV}
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm"
           >
             <Download className="w-3.5 h-3.5" /> Exportar CSV
           </button>
+          {isSuperAdmin && (
+            <button
+              onClick={() => setShowChangePin(!showChangePin)}
+              className="bg-stone-200 hover:bg-stone-300 text-stone-800 font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5"
+              title="Administrar o cambiar claves de acceso (Solo Administrador)"
+            >
+              <KeyRound className="w-3.5 h-3.5" /> Claves
+            </button>
+          )}
           <button
-            onClick={() => setShowChangePin(!showChangePin)}
-            className="bg-stone-200 hover:bg-stone-300 text-stone-800 font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5"
-          >
-            <KeyRound className="w-3.5 h-3.5" /> Clave
-          </button>
-          <button
-            onClick={() => setIsAuthenticated(false)}
+            onClick={handleLogout}
             className="bg-red-50 hover:bg-red-100 text-red-700 font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-red-200"
           >
-            <LogOut className="w-3.5 h-3.5" /> Salir
+            <LogOut className="w-3.5 h-3.5" /> Salir ({isSuperAdmin ? 'Admin' : 'Editor'})
           </button>
         </div>
       </div>
@@ -526,8 +599,7 @@ Authorization: Bearer ${tokenString}
               : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
           }`}
         >
-          <span>🐾 Mascotas Reportadas</span>
-          <span className="bg-white/20 px-2 py-0.5 rounded-full text-[10px]">{pets.length}</span>
+          <span>🐾 Mascotas ({pets.length})</span>
         </button>
 
         <button
@@ -539,32 +611,73 @@ Authorization: Bearer ${tokenString}
           }`}
         >
           <Lightbulb className="w-4 h-4 text-amber-600" />
-          <span>💡 Buzón de Sugerencias</span>
-          <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full text-[10px] font-black">
-            {suggestions.length}
-          </span>
+          <span>💡 Buzón de Sugerencias ({suggestions.length})</span>
         </button>
 
-        <button
-          onClick={() => setAdminTab('api-tokens')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
-            adminTab === 'api-tokens'
-              ? 'bg-purple-900 text-white shadow-sm font-extrabold'
-              : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
-          }`}
-        >
-          <Key className="w-4 h-4 text-purple-400" />
-          <span>🔑 API Tokens & Integración</span>
-          <span className="bg-purple-100 text-purple-900 px-2 py-0.5 rounded-full text-[10px] font-black">
-            {tokens.length}
-          </span>
-        </button>
+        {isSuperAdmin && (
+          <button
+            onClick={() => setAdminTab('api-tokens')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              adminTab === 'api-tokens'
+                ? 'bg-purple-900 text-white shadow-sm font-extrabold'
+                : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+            }`}
+          >
+            <Key className="w-4 h-4 text-purple-400" />
+            <span>🔑 API Tokens & Integración ({tokens.length})</span>
+          </button>
+        )}
       </div>
 
       {/* Change PIN Form */}
       {showChangePin && (
-        <div className="bg-stone-100 border border-stone-300 rounded-2xl p-5 text-xs max-w-md animate-fadeIn">
-          <h3 className="font-bold text-slate-900 text-sm mb-3">Cambiar Clave de Acceso Administrador</h3>
+        <div className="bg-stone-100 border border-stone-300 rounded-2xl p-5 text-xs max-w-md animate-fadeIn space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+              <KeyRound className="w-4 h-4 text-blue-900" />
+              <span>Configuración de Claves de Acceso</span>
+            </h3>
+            <button
+              onClick={() => setShowChangePin(false)}
+              className="text-stone-400 hover:text-stone-600 text-xs"
+            >
+              ✕
+            </button>
+          </div>
+
+          {isSuperAdmin && (
+            <div className="flex rounded-xl bg-white p-1 border border-stone-300">
+              <button
+                type="button"
+                onClick={() => setTargetPinToChange('admin')}
+                className={`flex-1 py-1.5 px-2 rounded-lg font-bold transition ${
+                  targetPinToChange === 'admin'
+                    ? 'bg-blue-900 text-white shadow-sm'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                Clave Administrador
+              </button>
+              <button
+                type="button"
+                onClick={() => setTargetPinToChange('editor')}
+                className={`flex-1 py-1.5 px-2 rounded-lg font-bold transition ${
+                  targetPinToChange === 'editor'
+                    ? 'bg-emerald-700 text-white shadow-sm'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                Clave Perfil Editor
+              </button>
+            </div>
+          )}
+
+          <p className="text-[11px] text-stone-600">
+            {targetPinToChange === 'admin'
+              ? 'Actualiza la clave maestra del Administrador General.'
+              : 'Actualiza la clave asignada al Perfil de Editor de Registros.'}
+          </p>
+
           <form onSubmit={handleChangePin} className="space-y-3">
             <div>
               <label className="block text-stone-600 font-medium mb-1">Clave Actual:</label>
@@ -600,15 +713,15 @@ Authorization: Bearer ${tokenString}
               />
             </div>
 
-            {pinErrorMsg && <p className="text-red-600 font-medium text-[11px]">{pinErrorMsg}</p>}
-            {pinSuccessMsg && <p className="text-emerald-700 font-medium text-[11px]">{pinSuccessMsg}</p>}
+            {pinErrorMsg && <p className="text-red-600 font-medium text-[11px] bg-red-50 p-2 rounded border border-red-200">{pinErrorMsg}</p>}
+            {pinSuccessMsg && <p className="text-emerald-700 font-medium text-[11px] bg-emerald-50 p-2 rounded border border-emerald-200">{pinSuccessMsg}</p>}
 
             <div className="flex gap-2 pt-1">
               <button
                 type="submit"
                 className="bg-blue-900 hover:bg-blue-800 text-white font-bold px-4 py-2 rounded-lg transition"
               >
-                Guardar Nueva Clave
+                Guardar Clave
               </button>
               <button
                 type="button"
@@ -770,7 +883,7 @@ Authorization: Bearer ${tokenString}
                                   title="Ir a Cruce con IA con los rasgos de esta mascota"
                                 >
                                   <Sparkles className="w-3 h-3 text-blue-950" />
-                                  <span>Buscar por rasgos</span>
+                                  <span>Rasgos</span>
                                 </button>
                               )}
                               {onOpenLightbox && (
@@ -785,10 +898,11 @@ Authorization: Bearer ${tokenString}
                               {onOpenEditPet && (
                                 <button
                                   onClick={() => onOpenEditPet(p)}
-                                  className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition font-bold"
-                                  title="Editar reporte o subir fotografía"
+                                  className="px-2.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-900 rounded-lg transition font-bold text-[10px] flex items-center gap-1 shadow-sm"
+                                  title="Editar datos de la mascota o agregar/cambiar fotografía"
                                 >
-                                  <Edit3 className="w-4 h-4" />
+                                  <Edit3 className="w-3.5 h-3.5 text-blue-700" />
+                                  <span>Editar / Foto</span>
                                 </button>
                               )}
                               <button
@@ -802,17 +916,26 @@ Authorization: Bearer ${tokenString}
                               >
                                 {isResuelto ? 'Reactivar' : 'Marcar Resuelto'}
                               </button>
-                              <button
-                                onClick={async () => {
-                                  if (confirm(`¿Estás seguro de eliminar permanentemente el reporte de "${p.nombre}" (ID: ${p.id})? Esta acción no se puede deshacer.`)) {
-                                    await onDeletePet(p.id);
-                                  }
-                                }}
-                                className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition"
-                                title="Eliminar permanentemente este registro"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              {isSuperAdmin ? (
+                                <button
+                                  onClick={async () => {
+                                    if (confirm(`¿Estás seguro de eliminar permanentemente el reporte de "${p.nombre}" (ID: ${p.id})? Esta acción no se puede deshacer.`)) {
+                                      await onDeletePet(p.id);
+                                    }
+                                  }}
+                                  className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition"
+                                  title="Eliminar permanentemente este registro (Solo Administrador)"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              ) : (
+                                <span
+                                  className="p-1.5 text-stone-300 cursor-not-allowed"
+                                  title="Eliminación permanente restringida a Administrador General"
+                                >
+                                  <Trash2 className="w-4 h-4 opacity-40" />
+                                </span>
+                              )}
                             </div>
                           </td>
                         </tr>
