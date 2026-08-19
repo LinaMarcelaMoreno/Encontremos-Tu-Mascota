@@ -276,40 +276,68 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handleCopyEngineerGuide = (tokenString: string, recipientName: string) => {
-    const isNetlifyOrLocal = window.location.hostname.includes('netlify') || window.location.hostname.includes('localhost');
-    const backendBaseUrl = isNetlifyOrLocal
-      ? 'https://ais-pre-mv74j5mmvmhqxd5iuq36cl-819302711748.us-east1.run.app'
-      : window.location.origin;
+    // Official public backend URL on Cloud Run
+    const backendBaseUrl = 'https://ais-pre-mv74j5mmvmhqxd5iuq36cl-819302711748.us-east1.run.app';
 
     const text = `Hola ${recipientName},
 
-Te comparto las credenciales y especificaciones técnicas para conectarte a la API REST / MCP de Rescate Animal Colombia:
+Te comparto las credenciales, URL pública activa y especificaciones técnicas para conectar el Bot de WhatsApp / integración externa a la API de Encontremos Tu Mascota Colombia:
 
 🔑 Tu API Token:
 ${tokenString}
 
-🌐 URL Base de la API:
+🌐 URL Base Pública de la API:
 ${backendBaseUrl}/api
 
-🔒 Cómo autenticarte:
+🔒 Autenticación:
 Debes incluir el siguiente encabezado HTTP en cada petición:
 x-api-key: ${tokenString}
 
-O en formato Bearer:
-Authorization: Bearer ${tokenString}
+(O en formato estándar: Authorization: Bearer ${tokenString})
 
-📌 Endpoints principales disponibles:
-1. GET /api/pets - Listar mascotas (admite filtros: tipo=PERDIDO|ENCONTRADO, ciudad, especie, color, q, limit, offset)
-2. POST /api/pets - Crear reporte de mascota (usa celular + nombre, sin cédula)
-3. POST /api/match - Motor de cruce inteligente entre perdidos y encontrados
-4. POST /api/pets/:id/resolve - Marcar caso como resuelto
-5. GET /api/stats - Estadísticas consolidadas
+📌 Endpoints para el Bot de WhatsApp:
 
-📖 Documentación interactiva y OpenAPI:
-- Visor web: ${backendBaseUrl}/api/docs
-- Especificación OpenAPI 3.0 / MCP: ${backendBaseUrl}/api/openapi.json
+1. 📥 Crear reporte de Mascota (POST /api/pets):
+URL: ${backendBaseUrl}/api/pets
+Method: POST
+Headers:
+  Content-Type: application/json
+  x-api-key: ${tokenString}
 
-*Nota de rendimiento: Todas las consultas de lectura se resuelven en memoria RAM (~5ms) con 0 costo de Firestore.*`;
+Ejemplo de Body (JSON) para registrar mascota desde el Bot:
+{
+  "tipo": "PERDIDO", // o "ENCONTRADO"
+  "nombre": "Firulais",
+  "especie": "Perro", // "Perro", "Gato", "Otro"
+  "raza": "Criollo / Mestizo",
+  "color": "Café", // o "Bicolor", "Negro", "Blanco", "Naranja", "Amarillo", etc.
+  "subColores": ["Blanco"], // Opcional si es Bicolor, Tricolor o Atigrado
+  "tamano": "Mediano", // "Pequeño", "Mediano", "Grande"
+  "departamento": "Quindío",
+  "ciudad": "Armenia",
+  "ubicacion": "Barrio Granada cerca al parque",
+  "contacto": "Juan Pérez",
+  "telefono": "3101234567",
+  "telefonoSecundario": "3209876543",
+  "correo": "contacto@ejemplo.com",
+  "foto": "https://ejemplo.com/foto_subida.jpg", // URL de la foto o base64 (data:image/jpeg;base64,...)
+  "detalles": "Tiene collar rojo con placa, oreja derecha caída"
+}
+
+2. 🔍 Consultar mascotas (GET /api/pets):
+URL: ${backendBaseUrl}/api/pets?tipo=PERDIDO&ciudad=Armenia
+
+3. ⚡ Motor de cruce inteligente (POST /api/match):
+URL: ${backendBaseUrl}/api/match
+
+4. 📊 Estadísticas generales (GET /api/stats):
+URL: ${backendBaseUrl}/api/stats
+
+📖 Documentación interactiva Swagger / Visor OpenAPI:
+${backendBaseUrl}/api/docs
+${backendBaseUrl}/api/openapi.json
+
+*Nota de rendimiento: Todas las lecturas se resuelven en memoria RAM (~5ms) con 0 costo de base de datos.*`;
 
     navigator.clipboard.writeText(text);
     setCopiedInstructions(true);

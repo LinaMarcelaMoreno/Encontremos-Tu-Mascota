@@ -362,6 +362,17 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // CORS Middleware for external clients (WhatsApp Bots, Webhooks, Scripts)
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-api-key, x-admin-key, x-internal-client');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   app.use(express.json({ limit: '20mb' }));
 
   // Pre-warm RAM cache on server boot
