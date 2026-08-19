@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { ActiveTab, UserRole } from '../types';
-import { AlertTriangle, PlusCircle, Sparkles, PawPrint, Lightbulb, ShieldCheck, Edit3, Lock, LogOut } from 'lucide-react';
+import { AlertTriangle, PlusCircle, Sparkles, PawPrint, Lightbulb, ShieldCheck, Edit3, Lock, LogOut, HeartHandshake, Eye } from 'lucide-react';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -122,6 +122,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           <button
+            id="nav-success-btn"
+            onClick={() => onSelectTab('success')}
+            className={`px-3.5 py-2 rounded-lg transition-all flex items-center gap-2 font-semibold ${
+              activeTab === 'success'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black shadow-md ring-2 ring-emerald-300'
+                : 'text-emerald-400 hover:bg-slate-800 hover:text-emerald-300'
+            }`}
+            title="Historias y métricas de mascotas que regresaron a casa"
+          >
+            <HeartHandshake className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>Reencuentros Exitosos</span>
+          </button>
+
+          <button
             id="nav-suggestions-btn"
             onClick={() => onSelectTab('suggestions')}
             className={`px-3.5 py-2 rounded-lg transition-all flex items-center gap-2 font-semibold ${
@@ -179,13 +193,35 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
             </div>
+          ) : currentRole === 'viewer' ? (
+            <div className="flex items-center gap-1 bg-indigo-950 border border-indigo-700/60 rounded-lg p-0.5">
+              <button
+                onClick={() => onSelectTab('admin')}
+                className={`px-2.5 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5 transition ${
+                  activeTab === 'admin' ? 'bg-indigo-500 text-white shadow-sm' : 'text-indigo-200 hover:bg-indigo-900'
+                }`}
+                title="Panel de Consultas (Solo Lectura y Exportación)"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Consultas</span>
+              </button>
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="p-1.5 text-stone-300 hover:text-white hover:bg-red-900/60 rounded-md transition"
+                  title="Cerrar sesión de Consultas"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           ) : (
             <button
               onClick={() => onSelectTab('admin')}
               className={`px-2.5 py-2 rounded-lg transition-all flex items-center gap-1 font-semibold text-stone-400 hover:text-white hover:bg-slate-800 ${
                 activeTab === 'admin' ? 'bg-slate-800 text-white font-bold' : ''
               }`}
-              title="Gestión de Registros"
+              title="Gestión y Consulta de Registros"
             >
               <Edit3 className="w-3.5 h-3.5 text-stone-400" />
               <span>Gestión</span>

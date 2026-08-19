@@ -13,6 +13,7 @@ import { ResolvePetModal } from './components/ResolvePetModal';
 import { EditPetModal } from './components/EditPetModal';
 import { AdminDashboard } from './components/AdminDashboard';
 import { DailyEmailDigestModal } from './components/DailyEmailDigestModal';
+import { SuccessStories } from './components/SuccessStories';
 import { COLOMBIAN_DEPARTMENTS, checkPetColorMatch, evaluatePetMatch } from './data/colombiaData';
 
 export default function App() {
@@ -310,6 +311,17 @@ export default function App() {
     return keys;
   }, [pets]);
 
+  // Helper to safely clean data objects for Firestore (removing any undefined values)
+  const sanitizeFirestoreData = (data: Record<string, any>) => {
+    const clean: Record<string, any> = {};
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined) {
+        clean[k] = v;
+      }
+    });
+    return clean;
+  };
+
   // Handler: Submit Lost Pet
   const handleCreateLostPet = async (
     petData: Omit<PetRecord, 'id' | 'createdAt' | 'estado' | 'resolveToken'>
@@ -319,20 +331,47 @@ export default function App() {
         throw new Error('La fotografía de la mascota es obligatoria.');
       }
       const resolveToken = Math.random().toString(36).substring(2, 10);
-      const newDocRef = await addDoc(collection(db, 'pets'), {
+      const cleanPayload = sanitizeFirestoreData({
         ...petData,
+        subColores: Array.isArray(petData.subColores) ? petData.subColores : [],
+        telefonoSecundario: petData.telefonoSecundario || '',
         estado: 'ACTIVO',
         createdAt: Date.now(),
         resolveToken
       });
 
+      let newId = '';
+      try {
+        const newDocRef = await addDoc(collection(db, 'pets'), cleanPayload);
+        newId = newDocRef.id;
+      } catch (firestoreErr) {
+        console.warn('Direct Firestore write encountered an error, trying server fallback:', firestoreErr);
+        // Fallback to server API POST /api/pets
+        const res = await fetch('/api/pets', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-internal-client': 'tumascota-web-spa'
+          },
+          body: JSON.stringify(cleanPayload)
+        });
+        const resData = await res.json();
+        if (!res.ok || !resData?.success) {
+          throw new Error(resData?.error || 'Error al guardar en el servidor. Por favor intenta nuevamente.');
+        }
+        newId = resData.pet?.id || `pet_${Date.now()}`;
+      }
+
       const fullRecord: PetRecord = {
         ...petData,
-        id: newDocRef.id,
+        id: newId,
         estado: 'ACTIVO',
         createdAt: Date.now(),
         resolveToken
       };
+
+      // Optimistically add to local state
+      setPets((prev) => [fullRecord, ...prev.filter((p) => p.id !== newId)]);
 
       // Calculate matches against active found pets
       let exacts = 0;
@@ -374,20 +413,47 @@ export default function App() {
         throw new Error('La fotografía de la mascota es obligatoria.');
       }
       const resolveToken = Math.random().toString(36).substring(2, 10);
-      const newDocRef = await addDoc(collection(db, 'pets'), {
+      const cleanPayload = sanitizeFirestoreData({
         ...petData,
+        subColores: Array.isArray(petData.subColores) ? petData.subColores : [],
+        telefonoSecundario: petData.telefonoSecundario || '',
         estado: 'ACTIVO',
         createdAt: Date.now(),
         resolveToken
       });
 
+      let newId = '';
+      try {
+        const newDocRef = await addDoc(collection(db, 'pets'), cleanPayload);
+        newId = newDocRef.id;
+      } catch (firestoreErr) {
+        console.warn('Direct Firestore write encountered an error, trying server fallback:', firestoreErr);
+        // Fallback to server API POST /api/pets
+        const res = await fetch('/api/pets', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-internal-client': 'tumascota-web-spa'
+          },
+          body: JSON.stringify(cleanPayload)
+        });
+        const resData = await res.json();
+        if (!res.ok || !resData?.success) {
+          throw new Error(resData?.error || 'Error al guardar en el servidor. Por favor intenta nuevamente.');
+        }
+        newId = resData.pet?.id || `pet_${Date.now()}`;
+      }
+
       const fullRecord: PetRecord = {
         ...petData,
-        id: newDocRef.id,
+        id: newId,
         estado: 'ACTIVO',
         createdAt: Date.now(),
         resolveToken
       };
+
+      // Optimistically add to local state
+      setPets((prev) => [fullRecord, ...prev.filter((p) => p.id !== newId)]);
 
       // Calculate matches against active lost pets
       let exacts = 0;
@@ -674,7 +740,16 @@ export default function App() {
               />
             )}
 
-            {/* Tab 4: Tu Sugerencia Importa */}
+            {/* Tab 4: Reencuentros Exitosos (Pública) */}
+            {activeTab === 'success' && (
+              <SuccessStories
+                pets={pets}
+                onOpenLightbox={(pet) => setLightboxPet(pet)}
+                onNavigateToGallery={() => setActiveTab('gallery')}
+              />
+            )}
+
+            {/* Tab 5: Tu Sugerencia Importa */}
             {activeTab === 'suggestions' && (
               <SuggestionsView onSubmitSuggestion={handleCreateSuggestion} />
             )}

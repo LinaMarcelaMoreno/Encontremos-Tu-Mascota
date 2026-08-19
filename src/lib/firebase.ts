@@ -14,6 +14,7 @@ export const db = (() => {
     return initializeFirestore(
       app,
       {
+        ignoreUndefinedProperties: true,
         localCache: persistentLocalCache({
           tabManager: persistentMultipleTabManager()
         })

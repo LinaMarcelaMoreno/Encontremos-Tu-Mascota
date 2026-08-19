@@ -3,6 +3,7 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy 
 import { db } from '../lib/firebase';
 import { PetRecord, PetStatus, SuggestionRecord, ApiTokenRecord, UserRole } from '../types';
 import { formatPetColorDisplay } from '../data/colombiaData';
+import { downloadPetsCsv, downloadPetsExcel } from '../lib/excelExport';
 import {
   ShieldCheck,
   Lock,
@@ -30,7 +31,8 @@ import {
   AlertCircle,
   Edit3,
   UserCheck,
-  UserCog
+  UserCog,
+  FileSpreadsheet
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -65,16 +67,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onRoleChange
 }) => {
   const [activeRole, setActiveRole] = useState<UserRole>(() => {
-    if (currentRole === 'admin' || currentRole === 'editor') return currentRole;
+    if (currentRole === 'admin' || currentRole === 'editor' || currentRole === 'viewer') return currentRole;
     const saved = localStorage.getItem('app_auth_role') as UserRole;
-    return saved === 'admin' || saved === 'editor' ? saved : 'public';
+    return saved === 'admin' || saved === 'editor' || saved === 'viewer' ? saved : 'public';
   });
 
-  const isAuthenticated = activeRole === 'admin' || activeRole === 'editor';
+  const isAuthenticated = activeRole === 'admin' || activeRole === 'editor' || activeRole === 'viewer';
+  const isViewer = activeRole === 'viewer';
+  const isEditor = activeRole === 'editor';
+  const isSuperAdmin = activeRole === 'admin';
 
   const [pinInput, setPinInput] = useState('');
   const [adminPin, setAdminPin] = useState(() => localStorage.getItem('admin_pin') || '1234');
   const [editorPin, setEditorPin] = useState(() => localStorage.getItem('editor_pin') || 'editor2026');
+  const [viewerPin, setViewerPin] = useState(() => localStorage.getItem('viewer_pin') || 'consultasvol159');
   const [loginError, setLoginError] = useState('');
 
   // Tab inside admin: 'pets' | 'suggestions' | 'api-tokens'
@@ -82,7 +88,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Password change form state (Only accessible by super admin)
   const [showChangePin, setShowChangePin] = useState(false);
-  const [targetPinToChange, setTargetPinToChange] = useState<'editor' | 'admin'>('editor');
+  const [targetPinToChange, setTargetPinToChange] = useState<'editor' | 'admin' | 'viewer'>('viewer');
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -315,6 +321,7 @@ Authorization: Bearer ${tokenString}
     const entered = pinInput.trim();
     const currentAdminPin = localStorage.getItem('admin_pin') || adminPin || '1234';
     const currentEditorPin = localStorage.getItem('editor_pin') || editorPin || 'editor2026';
+    const currentViewerPin = localStorage.getItem('viewer_pin') || viewerPin || 'consultasvol159';
 
     // Secret Admin Login
     if (entered === currentAdminPin || entered === 'tumascotaperdida2026') {
@@ -326,7 +333,7 @@ Authorization: Bearer ${tokenString}
       return;
     }
 
-    // Editor Login
+    // Editor Login (Gestión Completa / Edición)
     if (entered === currentEditorPin || entered === 'editor2026' || entered === '5678') {
       setActiveRole('editor');
       localStorage.setItem('app_auth_role', 'editor');
@@ -336,7 +343,17 @@ Authorization: Bearer ${tokenString}
       return;
     }
 
-    setLoginError('Clave incorrecta. Por favor verifica tu clave de acceso e intenta nuevamente.');
+    // Viewer Login (Consultas / Solo Lectura)
+    if (entered === currentViewerPin || entered === 'consultasvol159') {
+      setActiveRole('viewer');
+      localStorage.setItem('app_auth_role', 'viewer');
+      if (onRoleChange) onRoleChange('viewer');
+      setLoginError('');
+      setPinInput('');
+      return;
+    }
+
+    setLoginError('Clave incorrecta. Por favor verifica tu clave de acceso autorizada e intenta nuevamente.');
   };
 
   const handleLogout = () => {
@@ -355,7 +372,12 @@ Authorization: Bearer ${tokenString}
       return;
     }
 
-    const targetKeyName = targetPinToChange === 'admin' ? 'Clave de Administrador' : 'Clave del Perfil Editor';
+    const targetKeyName =
+      targetPinToChange === 'admin'
+        ? 'Clave de Administrador'
+        : targetPinToChange === 'editor'
+        ? 'Clave del Perfil Editor'
+        : 'Clave del Perfil Consultas';
 
     // Current Admin pin verification
     if (currentPin !== adminPin && currentPin !== '1234' && currentPin !== 'tumascotaperdida2026') {
@@ -376,9 +398,12 @@ Authorization: Bearer ${tokenString}
     if (targetPinToChange === 'admin') {
       setAdminPin(newPin);
       localStorage.setItem('admin_pin', newPin);
-    } else {
+    } else if (targetPinToChange === 'editor') {
       setEditorPin(newPin);
       localStorage.setItem('editor_pin', newPin);
+    } else {
+      setViewerPin(newPin);
+      localStorage.setItem('viewer_pin', newPin);
     }
 
     setPinSuccessMsg(`¡${targetKeyName} actualizada exitosamente!`);
@@ -389,55 +414,6 @@ Authorization: Bearer ${tokenString}
       setShowChangePin(false);
       setPinSuccessMsg('');
     }, 2500);
-  };
-
-  const exportCSV = () => {
-    const headers = [
-      'ID',
-      'Tipo',
-      'Estado',
-      'Nombre',
-      'Cedula',
-      'Especie',
-      'Raza',
-      'Color',
-      'Tamano',
-      'Departamento',
-      'Ciudad',
-      'Ubicacion',
-      'Contacto',
-      'Telefono',
-      'Correo',
-      'Fecha'
-    ];
-
-    const rows = pets.map((p) => [
-      p.id,
-      p.tipo,
-      p.estado,
-      `"${p.nombre || ''}"`,
-      `"${p.cedula || ''}"`,
-      p.especie,
-      `"${p.raza || ''}"`,
-      `"${formatPetColorDisplay(p.color, p.subColores)}"`,
-      p.tamano,
-      `"${p.departamento || ''}"`,
-      `"${p.ciudad || ''}"`,
-      `"${p.ubicacion || ''}"`,
-      `"${p.contacto || ''}"`,
-      `"${p.telefono || ''}"`,
-      `"${p.correo || ''}"`,
-      p.fecha
-    ]);
-
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `mascotas_colombia_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   const filteredPets = pets.filter((p) => {
@@ -462,23 +438,23 @@ Authorization: Bearer ${tokenString}
 
   if (!isAuthenticated) {
     return (
-      <div className="max-w-md mx-auto py-12">
-        <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-stone-200 space-y-5 text-center">
+      <div className="max-w-md mx-auto py-12 animate-fadeIn">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-stone-200 space-y-5 text-center">
           <div className="w-14 h-14 rounded-2xl bg-blue-900 text-yellow-400 mx-auto flex items-center justify-center shadow-md">
-            <Edit3 className="w-8 h-8" />
+            <Lock className="w-7 h-7" />
           </div>
 
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Gestión</h2>
+            <h2 className="text-xl font-bold text-slate-900">Acceso a Gestión y Consultas</h2>
             <p className="text-stone-500 text-xs mt-1 leading-relaxed">
-              Ingresa tu clave de acceso autorizada para modificar publicaciones, actualizar estados y subir o cambiar fotografías de reportes.
+              Ingresa tu clave autorizada. El sistema te otorgará permisos de <strong>Gestión Completa</strong> o de <strong>Solo Lectura (Consultas)</strong> según la clave ingresada.
             </p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4 text-xs text-left">
             <div>
               <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5 text-stone-500" /> Clave de Acceso:
+                <KeyRound className="w-3.5 h-3.5 text-stone-500" /> Clave de Acceso:
               </label>
               <input
                 type="password"
@@ -486,12 +462,13 @@ Authorization: Bearer ${tokenString}
                 required
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value)}
-                placeholder="Ingresa tu clave de acceso (defecto: editor2026)"
+                placeholder="Ingresa tu clave (ej. consultasvol159 o editor2026)"
                 className="w-full border border-stone-300 rounded-xl p-3 bg-stone-50 text-xs focus:ring-2 focus:ring-blue-900 outline-none"
               />
-              <span className="text-[10px] text-stone-400 mt-1 block">
-                Clave predeterminada: <code>editor2026</code>
-              </span>
+              <div className="mt-2 p-2.5 bg-stone-50 rounded-xl border border-stone-200 text-[11px] text-stone-600 space-y-1">
+                <div>• Perfil Consultas (Solo Lectura): <code>consultasvol159</code></div>
+                <div>• Perfil Editor (Gestión Completa): <code>editor2026</code></div>
+              </div>
             </div>
 
             {loginError && (
@@ -506,7 +483,7 @@ Authorization: Bearer ${tokenString}
               className="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-3 rounded-xl transition text-xs shadow-sm flex items-center justify-center gap-1.5"
             >
               <Lock className="w-3.5 h-3.5" />
-              <span>Ingresar al Panel</span>
+              <span>Ingresar al Sistema</span>
             </button>
           </form>
         </div>
@@ -514,13 +491,12 @@ Authorization: Bearer ${tokenString}
     );
   }
 
-  const isSuperAdmin = activeRole === 'admin';
   const lostCount = pets.filter((p) => p.tipo === 'PERDIDO').length;
   const foundCount = pets.filter((p) => p.tipo === 'ENCONTRADO').length;
   const resolvedCount = pets.filter((p) => p.estado === 'RESUELTO').length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fadeIn">
       {/* Top Header & Actions */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -530,21 +506,32 @@ Authorization: Bearer ${tokenString}
                 <ShieldCheck className="w-3 h-3 text-yellow-400" />
                 <span>Super Administrador</span>
               </span>
-            ) : (
+            ) : isEditor ? (
               <span className="bg-emerald-700 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded flex items-center gap-1">
                 <Edit3 className="w-3 h-3 text-white" />
                 <span>Perfil Editor de Registros</span>
               </span>
+            ) : (
+              <span className="bg-indigo-700 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded flex items-center gap-1">
+                <Eye className="w-3 h-3 text-white" />
+                <span>Perfil Consultas (Solo Lectura)</span>
+              </span>
             )}
-            <span className="text-xs text-stone-500">Firebase Firestore Conectado</span>
+            <span className="text-xs text-stone-500">Firestore Conectado</span>
           </div>
           <h2 className="text-2xl font-bold text-slate-900 mt-1">
-            {isSuperAdmin ? 'Gestión Central de la Plataforma' : 'Panel de Edición y Actualización de Fichas'}
+            {isSuperAdmin
+              ? 'Gestión Central de la Plataforma'
+              : isEditor
+              ? 'Panel de Edición y Actualización de Fichas'
+              : 'Módulo de Consultas y Reportes en Lista'}
           </h2>
           <p className="text-stone-500 text-xs">
             {isSuperAdmin
               ? 'Administra reportes, atiende el buzón de sugerencias, gestiona tokens y despacha alertas masivas.'
-              : 'Modifica datos de mascotas, sube o cambia fotografías y gestiona el estado de casos activos y resueltos.'}
+              : isEditor
+              ? 'Modifica datos de mascotas, sube o cambia fotografías y gestiona el estado de casos activos y resueltos.'
+              : 'Visualiza la base de datos completa de mascotas, consulta detalles y exporta a Excel o CSV.'}
           </p>
         </div>
 
@@ -556,6 +543,7 @@ Authorization: Bearer ${tokenString}
           >
             <RefreshCw className="w-3.5 h-3.5" /> Actualizar
           </button>
+
           {isSuperAdmin && (
             <button
               onClick={onOpenDigestModal}
@@ -565,12 +553,37 @@ Authorization: Bearer ${tokenString}
               <Mail className="w-3.5 h-3.5" /> Enviar Alertas (Resend)
             </button>
           )}
-          <button
-            onClick={exportCSV}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm"
-          >
-            <Download className="w-3.5 h-3.5" /> Exportar CSV
-          </button>
+
+          {/* Export buttons: Filtered vs Complete Base */}
+          <div className="flex items-center gap-1.5 bg-stone-100 p-1 rounded-xl border border-stone-200">
+            <button
+              onClick={() => downloadPetsExcel(filteredPets, 'mascotas_filtradas')}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1.5 rounded-lg transition flex items-center gap-1 shadow-sm text-[11px]"
+              title={`Exportar a Excel los ${filteredPets.length} registros que cumplen los filtros actuales`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Excel ({filteredPets.length})</span>
+            </button>
+
+            <button
+              onClick={() => downloadPetsCsv(filteredPets, 'mascotas_filtradas')}
+              className="bg-teal-600 hover:bg-teal-700 text-white font-bold px-2.5 py-1.5 rounded-lg transition flex items-center gap-1 shadow-sm text-[11px]"
+              title={`Exportar a CSV los ${filteredPets.length} registros que cumplen los filtros actuales`}
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>CSV ({filteredPets.length})</span>
+            </button>
+
+            <button
+              onClick={() => downloadPetsExcel(pets, 'mascotas_base_completa')}
+              className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-2.5 py-1.5 rounded-lg transition flex items-center gap-1 shadow-sm text-[11px]"
+              title={`Exportar la base de datos COMPLETA (${pets.length} registros) a Excel`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-yellow-400" />
+              <span>Base Completa ({pets.length})</span>
+            </button>
+          </div>
+
           {isSuperAdmin && (
             <button
               onClick={() => setShowChangePin(!showChangePin)}
@@ -580,11 +593,12 @@ Authorization: Bearer ${tokenString}
               <KeyRound className="w-3.5 h-3.5" /> Claves
             </button>
           )}
+
           <button
             onClick={handleLogout}
             className="bg-red-50 hover:bg-red-100 text-red-700 font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-red-200"
           >
-            <LogOut className="w-3.5 h-3.5" /> Salir ({isSuperAdmin ? 'Admin' : 'Editor'})
+            <LogOut className="w-3.5 h-3.5" /> Salir ({isSuperAdmin ? 'Admin' : isEditor ? 'Editor' : 'Consultas'})
           </button>
         </div>
       </div>
@@ -602,17 +616,19 @@ Authorization: Bearer ${tokenString}
           <span>🐾 Mascotas ({pets.length})</span>
         </button>
 
-        <button
-          onClick={() => setAdminTab('suggestions')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
-            adminTab === 'suggestions'
-              ? 'bg-yellow-500 text-slate-950 shadow-sm font-extrabold'
-              : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
-          }`}
-        >
-          <Lightbulb className="w-4 h-4 text-amber-600" />
-          <span>💡 Buzón de Sugerencias ({suggestions.length})</span>
-        </button>
+        {!isViewer && (
+          <button
+            onClick={() => setAdminTab('suggestions')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+              adminTab === 'suggestions'
+                ? 'bg-yellow-500 text-slate-950 shadow-sm font-extrabold'
+                : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+            }`}
+          >
+            <Lightbulb className="w-4 h-4 text-amber-600" />
+            <span>💡 Buzón de Sugerencias ({suggestions.length})</span>
+          </button>
+        )}
 
         {isSuperAdmin && (
           <button
@@ -650,24 +666,35 @@ Authorization: Bearer ${tokenString}
               <button
                 type="button"
                 onClick={() => setTargetPinToChange('admin')}
-                className={`flex-1 py-1.5 px-2 rounded-lg font-bold transition ${
+                className={`flex-1 py-1.5 px-2 rounded-lg font-bold transition text-[11px] ${
                   targetPinToChange === 'admin'
                     ? 'bg-blue-900 text-white shadow-sm'
                     : 'text-stone-600 hover:text-stone-900'
                 }`}
               >
-                Clave Administrador
+                Admin
               </button>
               <button
                 type="button"
                 onClick={() => setTargetPinToChange('editor')}
-                className={`flex-1 py-1.5 px-2 rounded-lg font-bold transition ${
+                className={`flex-1 py-1.5 px-2 rounded-lg font-bold transition text-[11px] ${
                   targetPinToChange === 'editor'
                     ? 'bg-emerald-700 text-white shadow-sm'
                     : 'text-stone-600 hover:text-stone-900'
                 }`}
               >
-                Clave Perfil Editor
+                Editor
+              </button>
+              <button
+                type="button"
+                onClick={() => setTargetPinToChange('viewer')}
+                className={`flex-1 py-1.5 px-2 rounded-lg font-bold transition text-[11px] ${
+                  targetPinToChange === 'viewer'
+                    ? 'bg-indigo-700 text-white shadow-sm'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                Consultas
               </button>
             </div>
           )}
@@ -675,18 +702,20 @@ Authorization: Bearer ${tokenString}
           <p className="text-[11px] text-stone-600">
             {targetPinToChange === 'admin'
               ? 'Actualiza la clave maestra del Administrador General.'
-              : 'Actualiza la clave asignada al Perfil de Editor de Registros.'}
+              : targetPinToChange === 'editor'
+              ? 'Actualiza la clave asignada al Perfil de Editor de Registros.'
+              : 'Actualiza la clave asignada al Perfil de Consultas (Solo Lectura).'}
           </p>
 
           <form onSubmit={handleChangePin} className="space-y-3">
             <div>
-              <label className="block text-stone-600 font-medium mb-1">Clave Actual:</label>
+              <label className="block text-stone-600 font-medium mb-1">Clave Actual de Administrador:</label>
               <input
                 type="password"
                 required
                 value={currentPin}
                 onChange={(e) => setCurrentPin(e.target.value)}
-                placeholder="Ingresa clave actual"
+                placeholder="Ingresa clave actual de Admin"
                 className="w-full border border-stone-300 rounded-lg p-2 bg-white outline-none"
               />
             </div>
@@ -735,7 +764,7 @@ Authorization: Bearer ${tokenString}
         </div>
       )}
 
-      {adminTab === 'pets' ? (
+      {adminTab === 'pets' && (
         <>
           {/* Metrics Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
@@ -895,7 +924,8 @@ Authorization: Bearer ${tokenString}
                                   <Eye className="w-4 h-4" />
                                 </button>
                               )}
-                              {onOpenEditPet && (
+                              {/* Edit & Status toggle: Restricted to Editor or Super Admin */}
+                              {!isViewer && onOpenEditPet && (
                                 <button
                                   onClick={() => onOpenEditPet(p)}
                                   className="px-2.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-900 rounded-lg transition font-bold text-[10px] flex items-center gap-1 shadow-sm"
@@ -905,18 +935,20 @@ Authorization: Bearer ${tokenString}
                                   <span>Editar / Foto</span>
                                 </button>
                               )}
-                              <button
-                                onClick={() => onUpdatePetStatus(p.id, isResuelto ? 'ACTIVO' : 'RESUELTO')}
-                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${
-                                  isResuelto
-                                    ? 'bg-stone-200 text-stone-700 hover:bg-emerald-100'
-                                    : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                                }`}
-                                title="Alternar estado Activo / Resuelto"
-                              >
-                                {isResuelto ? 'Reactivar' : 'Marcar Resuelto'}
-                              </button>
-                              {isSuperAdmin ? (
+                              {!isViewer && (
+                                <button
+                                  onClick={() => onUpdatePetStatus(p.id, isResuelto ? 'ACTIVO' : 'RESUELTO')}
+                                  className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${
+                                    isResuelto
+                                      ? 'bg-stone-200 text-stone-700 hover:bg-emerald-100'
+                                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                  }`}
+                                  title="Alternar estado Activo / Resuelto"
+                                >
+                                  {isResuelto ? 'Reactivar' : 'Marcar Resuelto'}
+                                </button>
+                              )}
+                              {isSuperAdmin && (
                                 <button
                                   onClick={async () => {
                                     if (confirm(`¿Estás seguro de eliminar permanentemente el reporte de "${p.nombre}" (ID: ${p.id})? Esta acción no se puede deshacer.`)) {
@@ -928,13 +960,6 @@ Authorization: Bearer ${tokenString}
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
-                              ) : (
-                                <span
-                                  className="p-1.5 text-stone-300 cursor-not-allowed"
-                                  title="Eliminación permanente restringida a Administrador General"
-                                >
-                                  <Trash2 className="w-4 h-4 opacity-40" />
-                                </span>
                               )}
                             </div>
                           </td>
@@ -947,8 +972,10 @@ Authorization: Bearer ${tokenString}
             </div>
           </div>
         </>
-      ) : (
-        /* Suggestions & Ideas Tab */
+      )}
+
+      {/* Suggestions & Ideas Tab */}
+      {adminTab === 'suggestions' && !isViewer && (
         <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden space-y-4 p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-200 pb-4">
             <div>

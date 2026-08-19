@@ -158,11 +158,11 @@ export const LostPetForm: React.FC<LostPetFormProps> = ({ onSubmitLostPet, exist
       ? (customBreed.trim() || 'Criollo / Mestizo')
       : selectedBreed;
 
-    let subColores: string[] | undefined = undefined;
+    let subColores: string[] = [];
     if (color === 'Bicolor' || color === 'Atigrado') {
-      subColores = [subColor1, subColor2];
+      subColores = [subColor1, subColor2].filter(Boolean);
     } else if (color === 'Tricolor') {
-      subColores = [subColor1, subColor2, subColor3];
+      subColores = [subColor1, subColor2, subColor3].filter(Boolean);
     }
 
     setIsSubmitting(true);
@@ -175,14 +175,14 @@ export const LostPetForm: React.FC<LostPetFormProps> = ({ onSubmitLostPet, exist
         especie,
         raza: finalRaza,
         color,
-        subColores,
+        subColores: subColores.length > 0 ? subColores : [],
         tamano,
         departamento: currentDeptObj.name,
         ciudad,
         ubicacion: ubicacion.trim(),
         contacto: contacto.trim(),
         telefono: telefono.trim(),
-        telefonoSecundario: telefonoSecundario.trim() || undefined,
+        telefonoSecundario: telefonoSecundario.trim() || '',
         correo: correo.trim().toLowerCase(),
         foto: photoDataUrl,
         detalles: detalles.trim(),
@@ -205,8 +205,9 @@ export const LostPetForm: React.FC<LostPetFormProps> = ({ onSubmitLostPet, exist
         setCompressionInfo(null);
         setColorSuggestion({ show: false, detectedColors: [] });
       }
-    } catch {
-      setErrorMessage('Error al enviar el reporte a la base de datos. Por favor revisa tu conexión.');
+    } catch (err: any) {
+      console.error('Error submitting lost pet:', err);
+      setErrorMessage(err?.message || 'Error al enviar el reporte a la base de datos. Por favor revisa tu conexión.');
     } finally {
       setIsSubmitting(false);
     }

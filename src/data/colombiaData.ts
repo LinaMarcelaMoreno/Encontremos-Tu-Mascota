@@ -209,6 +209,8 @@ export const ALL_COLORS = [
   'Blanco',
   'Café',
   'Dorado',
+  'Amarillo',
+  'Naranja',
   'Gris',
   'Crema',
   'Atigrado',
@@ -263,6 +265,109 @@ export function formatPetColorDisplay(
     return `${colorOrPet} (${subColores.join(' + ')})`;
   }
   return colorOrPet;
+}
+
+/**
+ * Normaliza un tono de color para comparación consistente
+ */
+export const normalizeTone = (raw: string): string => {
+  const s = (raw || '').trim().toLowerCase();
+  if (!s || s === 'otro') return '';
+  if (s.includes('blanc') || s.includes('nieve')) return 'blanco';
+  if (s.includes('negr') || s.includes('azabache')) return 'negro';
+  if (s.includes('gris') || s.includes('plomo') || s.includes('azul') || s.includes('ceniza')) return 'gris';
+  if (s.includes('caf') || s.includes('marron') || s.includes('marrón') || s.includes('chocolat') || s.includes('castan') || s.includes('castañ')) return 'café';
+  if (s.includes('dorad') || s.includes('miel') || s.includes('rubio')) return 'dorado';
+  if (s.includes('amarill')) return 'amarillo';
+  if (s.includes('naranj') || s.includes('roj') || s.includes('fuego')) return 'naranja';
+  if (s.includes('crema') || s.includes('beige') || s.includes('marfil') || s.includes('arena')) return 'crema';
+  return s;
+};
+
+/**
+ * Obtiene el arreglo de todos los tonos asociados a una mascota (color principal + subcolores)
+ */
+export function getPetAllColorTones(
+  petOrColor: string | { color?: string; subColores?: string[] },
+  subColoresParam?: string[]
+): string[] {
+  let mainColor = '';
+  let subs: string[] = [];
+
+  if (typeof petOrColor === 'string') {
+    mainColor = petOrColor || '';
+    subs = Array.isArray(subColoresParam) ? subColoresParam : [];
+  } else if (petOrColor && typeof petOrColor === 'object') {
+    mainColor = petOrColor.color || '';
+    subs = Array.isArray(petOrColor.subColores) ? petOrColor.subColores : [];
+  }
+
+  const tones: string[] = [];
+  subs.forEach((s) => {
+    const t = normalizeTone(s);
+    if (t) tones.push(t);
+  });
+
+  const mainTone = normalizeTone(mainColor);
+  if (mainTone && !['bicolor', 'tricolor', 'atigrado'].includes(mainTone)) {
+    tones.push(mainTone);
+  }
+
+  return Array.from(new Set(tones));
+}
+
+/**
+ * Verifica si una mascota cumple con los filtros de color seleccionados.
+ * Si se seleccionan múltiples colores (ej. Negro y Blanco, o Naranja y Amarillo),
+ * se aplica lógica estricta AND (la mascota DEBE incluir TODOS los colores requeridos).
+ */
+export function filterMatchesColorStrict(
+  petOrColor: string | { color?: string; subColores?: string[] },
+  selectedColors: string[] = [],
+  selectedSubColores: string[] = [],
+  compoundColorPattern?: string // 'all' | 'Bicolor' | 'Atigrado' | 'Tricolor'
+): boolean {
+  if (!petOrColor) return false;
+
+  let mainColor = '';
+  let petSubs: string[] = [];
+  if (typeof petOrColor === 'string') {
+    mainColor = petOrColor || '';
+  } else if (petOrColor && typeof petOrColor === 'object') {
+    mainColor = petOrColor.color || '';
+    petSubs = Array.isArray(petOrColor.subColores) ? petOrColor.subColores : [];
+  }
+
+  // 1. Si se filtró por un patrón específico (Bicolor, Atigrado, Tricolor)
+  if (compoundColorPattern && compoundColorPattern !== 'all') {
+    if (mainColor.toLowerCase() !== compoundColorPattern.toLowerCase()) {
+      return false;
+    }
+  }
+
+  // 2. Colores requeridos en conjunto (colores base seleccionados + subcolores seleccionados para patrón)
+  const requiredColors = [
+    ...selectedColors.filter((c) => c && c !== 'all'),
+    ...selectedSubColores.filter((c) => c && c !== 'all')
+  ];
+
+  if (requiredColors.length === 0) {
+    return true; // No hay filtro de color activo
+  }
+
+  const petTones = getPetAllColorTones({ color: mainColor, subColores: petSubs });
+
+  // Si la mascota no tiene tonos reconocidos y el usuario buscó colores específicos -> false
+  if (petTones.length === 0) {
+    // Si buscó el nombre directo en color principal (ej. "Otro")
+    return requiredColors.some((r) => r.toLowerCase() === mainColor.toLowerCase());
+  }
+
+  // REGLA ESTRICTA AND: Cada uno de los colores requeridos debe estar presente en los tonos de la mascota
+  return requiredColors.every((req) => {
+    const normReq = normalizeTone(req);
+    return petTones.includes(normReq) || mainColor.toLowerCase() === req.toLowerCase();
+  });
 }
 
 /**

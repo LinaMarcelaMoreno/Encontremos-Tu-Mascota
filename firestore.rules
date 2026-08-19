@@ -2,14 +2,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Pets collection: public read, public create with validation, update only for resolving, delete allowed for testing/cleanup
+    // Pets collection: public read, public create, update and delete
     match /pets/{petId} {
-      allow read: if true;
-      allow create: if request.resource.data.tipo in ['PERDIDO', 'ENCONTRADO']
-                    && request.resource.data.especie is string
-                    && request.resource.data.ciudad is string;
-      allow update: if true;
-      allow delete: if true;
+      allow read, write: if true;
     }
 
     // Alert and system logs

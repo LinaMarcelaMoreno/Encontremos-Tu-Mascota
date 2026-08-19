@@ -142,11 +142,11 @@ export const FoundPetForm: React.FC<FoundPetFormProps> = ({ onSubmitFoundPet }) 
       ? (customBreed.trim() || 'Criollo / Mestizo')
       : selectedBreed;
 
-    let subColores: string[] | undefined = undefined;
+    let subColores: string[] = [];
     if (color === 'Bicolor' || color === 'Atigrado') {
-      subColores = [subColor1, subColor2];
+      subColores = [subColor1, subColor2].filter(Boolean);
     } else if (color === 'Tricolor') {
-      subColores = [subColor1, subColor2, subColor3];
+      subColores = [subColor1, subColor2, subColor3].filter(Boolean);
     }
 
     setIsSubmitting(true);
@@ -159,14 +159,14 @@ export const FoundPetForm: React.FC<FoundPetFormProps> = ({ onSubmitFoundPet }) 
         especie,
         raza: finalRaza,
         color,
-        subColores,
+        subColores: subColores.length > 0 ? subColores : [],
         tamano,
         departamento: currentDeptObj.name,
         ciudad,
         ubicacion: ubicacion.trim(),
         contacto: contacto.trim(),
         telefono: telefono.trim(),
-        telefonoSecundario: telefonoSecundario.trim() || undefined,
+        telefonoSecundario: telefonoSecundario.trim() || '',
         correo: correo.trim().toLowerCase(),
         foto: photoDataUrl,
         detalles: detalles.trim(),
@@ -188,8 +188,9 @@ export const FoundPetForm: React.FC<FoundPetFormProps> = ({ onSubmitFoundPet }) 
         setCompressionInfo(null);
         setColorSuggestion({ show: false, detectedColors: [] });
       }
-    } catch {
-      setErrorMessage('Error al registrar la mascota en la base de datos.');
+    } catch (err: any) {
+      console.error('Error submitting found pet:', err);
+      setErrorMessage(err?.message || 'Error al registrar la mascota en la base de datos.');
     } finally {
       setIsSubmitting(false);
     }

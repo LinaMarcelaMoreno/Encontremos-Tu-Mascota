@@ -6,6 +6,8 @@ export type PetColor =
   | 'Blanco'
   | 'Café'
   | 'Dorado'
+  | 'Amarillo'
+  | 'Naranja'
   | 'Gris'
   | 'Crema'
   | 'Atigrado'
@@ -67,9 +69,9 @@ export interface MatchPair {
   };
 }
 
-export type ActiveTab = 'lost' | 'found' | 'gallery' | 'suggestions' | 'admin';
+export type ActiveTab = 'lost' | 'found' | 'gallery' | 'success' | 'suggestions' | 'admin';
 export type GalleryViewMode = 'all' | 'PERDIDO' | 'ENCONTRADO' | 'matches';
-export type UserRole = 'public' | 'editor' | 'admin';
+export type UserRole = 'public' | 'viewer' | 'editor' | 'admin';
 
 export interface SuggestionRecord {
   id: string;

@@ -3,11 +3,14 @@ import { PetRecord, GalleryViewMode, MatchPair } from '../types';
 import {
   COLOMBIAN_DEPARTMENTS,
   ALL_COLORS,
+  SUB_COLORS,
+  isCompoundColor,
   ALL_SIZES,
   ALL_SPECIES,
   formatPetColorDisplay,
   checkPetColorMatch,
   filterMatchesColor,
+  filterMatchesColorStrict,
   evaluatePetMatch,
   hasValidPetPhoto
 } from '../data/colombiaData';
@@ -96,6 +99,13 @@ export const GalleryAndMatches: React.FC<GalleryAndMatchesProps> = ({
   // Free text search keyword
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Color multi-selection and compound pattern filter
+  const [selectedColors, setSelectedColors] = useState<string[]>([]);
+  const [compoundPattern, setCompoundPattern] = useState<'all' | 'Bicolor' | 'Atigrado' | 'Tricolor'>('all');
+  const [filterSubColor1, setFilterSubColor1] = useState<string>('all');
+  const [filterSubColor2, setFilterSubColor2] = useState<string>('all');
+  const [filterSubColor3, setFilterSubColor3] = useState<string>('all');
+
   // Mode Cruce Sub-Filters
   const [crossOwnerPhone, setCrossOwnerPhone] = useState('');
   const [crossOwnerPetName, setCrossOwnerPetName] = useState('');
@@ -122,18 +132,53 @@ export const GalleryAndMatches: React.FC<GalleryAndMatchesProps> = ({
     selectedSpecies !== 'all' ||
     selectedColor !== 'all' ||
     selectedSize !== 'all' ||
-    searchTerm.trim() !== '';
+    searchTerm.trim() !== '' ||
+    selectedColors.length > 0 ||
+    compoundPattern !== 'all' ||
+    filterSubColor1 !== 'all' ||
+    filterSubColor2 !== 'all' ||
+    filterSubColor3 !== 'all';
 
   const handleDeptChange = (deptId: string) => {
     onChangeDept(deptId);
     onChangeCity('all');
   };
 
+  const handleToggleColor = (color: string) => {
+    setSelectedColors((prev) =>
+      prev.includes(color) ? prev.filter((c) => c !== color) : [...prev, color]
+    );
+  };
+
+  const handleResetAllFilters = () => {
+    onResetFilters();
+    setSearchTerm('');
+    setSelectedColors([]);
+    setCompoundPattern('all');
+    setFilterSubColor1('all');
+    setFilterSubColor2('all');
+    setFilterSubColor3('all');
+  };
+
   // Reset pagination when filters or viewMode change
   useEffect(() => {
     setCurrentPage(1);
     setCrossCurrentPage(1);
-  }, [viewMode, selectedDept, selectedCity, selectedSpecies, selectedColor, selectedSize, searchTerm, pageSize]);
+  }, [
+    viewMode,
+    selectedDept,
+    selectedCity,
+    selectedSpecies,
+    selectedColor,
+    selectedSize,
+    searchTerm,
+    pageSize,
+    selectedColors,
+    compoundPattern,
+    filterSubColor1,
+    filterSubColor2,
+    filterSubColor3
+  ]);
 
   // General Strict Cross-Match (Modo Cruce Estricto) pairs with percentages
   const strictMatchPairs = useMemo(() => {
@@ -342,14 +387,28 @@ export const GalleryAndMatches: React.FC<GalleryAndMatchesProps> = ({
 
   // Filtered list for standard gallery view
   const filteredPets = useMemo(() => {
+    const subList = [filterSubColor1, filterSubColor2, filterSubColor3].filter((s) => s && s !== 'all');
+
     return activePets.filter((p) => {
       if (viewMode === 'PERDIDO' && p.tipo !== 'PERDIDO') return false;
       if (viewMode === 'ENCONTRADO' && p.tipo !== 'ENCONTRADO') return false;
       if (selectedDept !== 'all' && p.departamento !== currentDeptObj?.name) return false;
       if (selectedCity !== 'all' && p.ciudad !== selectedCity) return false;
       if (selectedSpecies !== 'all' && p.especie !== selectedSpecies) return false;
-      if (selectedColor !== 'all' && !filterMatchesColor(p.color, p.subColores, selectedColor)) return false;
       if (selectedSize !== 'all' && p.tamano !== selectedSize) return false;
+
+      // Color strict matching (Multiple selected colors + Pattern sub-colors + Legacy dropdown)
+      if (selectedColors.length > 0 || compoundPattern !== 'all' || subList.length > 0) {
+        const matches = filterMatchesColorStrict(
+          { color: p.color, subColores: p.subColores },
+          selectedColors,
+          subList,
+          compoundPattern
+        );
+        if (!matches) return false;
+      } else if (selectedColor !== 'all') {
+        if (!filterMatchesColor(p.color, p.subColores, selectedColor)) return false;
+      }
 
       // Search keyword filter (ID, name, sector, raza, contacto)
       if (searchTerm.trim()) {
@@ -366,7 +425,22 @@ export const GalleryAndMatches: React.FC<GalleryAndMatchesProps> = ({
 
       return true;
     });
-  }, [activePets, viewMode, selectedDept, currentDeptObj, selectedCity, selectedSpecies, selectedColor, selectedSize, searchTerm]);
+  }, [
+    activePets,
+    viewMode,
+    selectedDept,
+    currentDeptObj,
+    selectedCity,
+    selectedSpecies,
+    selectedColor,
+    selectedSize,
+    searchTerm,
+    selectedColors,
+    compoundPattern,
+    filterSubColor1,
+    filterSubColor2,
+    filterSubColor3
+  ]);
 
   // Paginated pets slice for high speed and minimal resource consumption
   const totalPages = Math.max(1, Math.ceil(filteredPets.length / pageSize));
@@ -706,7 +780,7 @@ export const GalleryAndMatches: React.FC<GalleryAndMatchesProps> = ({
 
               {hasActiveFilters && (
                 <button
-                  onClick={onResetFilters}
+                  onClick={handleResetAllFilters}
                   className="px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs flex items-center justify-center gap-1.5 transition"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -716,14 +790,14 @@ export const GalleryAndMatches: React.FC<GalleryAndMatchesProps> = ({
             </div>
 
             {/* Dropdown Filters Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-1 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 pt-1 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Departamento:</label>
                 <select
                   id="filter-dept-select"
                   value={selectedDept}
                   onChange={(e) => handleDeptChange(e.target.value)}
-                  className="w-full border border-stone-300 rounded-xl p-2 bg-stone-50 text-xs"
+                  className="w-full border border-stone-300 rounded-xl p-2 bg-stone-50 text-xs truncate"
                 >
                   <option value="all">Todos los Departamentos</option>
                   {COLOMBIAN_DEPARTMENTS.map((d) => (
@@ -741,10 +815,10 @@ export const GalleryAndMatches: React.FC<GalleryAndMatchesProps> = ({
                   value={selectedCity}
                   onChange={(e) => onChangeCity(e.target.value)}
                   disabled={selectedDept === 'all'}
-                  className="w-full border border-stone-300 rounded-xl p-2 bg-stone-50 text-xs disabled:opacity-50"
+                  className="w-full border border-stone-300 rounded-xl p-2 bg-stone-50 text-xs disabled:opacity-50 truncate"
                 >
                   <option value="all">
-                    {selectedDept === 'all' ? 'Selecciona depto primero' : 'Todos los Municipios'}
+                    {selectedDept === 'all' ? 'Todos los Municipios (Elige Depto)' : 'Todos los Municipios'}
                   </option>
                   {currentDeptObj?.municipalities.map((m) => (
                     <option key={m} value={m}>
@@ -772,23 +846,6 @@ export const GalleryAndMatches: React.FC<GalleryAndMatchesProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Color:</label>
-                <select
-                  id="filter-color-select"
-                  value={selectedColor}
-                  onChange={(e) => onChangeColor(e.target.value)}
-                  className="w-full border border-stone-300 rounded-xl p-2 bg-stone-50 text-xs"
-                >
-                  <option value="all">Todos los Colores</option>
-                  {ALL_COLORS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
                 <label className="block font-bold text-slate-700 mb-1">Tamaño:</label>
                 <select
                   id="filter-size-select"
@@ -803,6 +860,123 @@ export const GalleryAndMatches: React.FC<GalleryAndMatchesProps> = ({
                     </option>
                   ))}
                 </select>
+              </div>
+            </div>
+
+            {/* Colors Multi-Select Filter */}
+            <div className="pt-2 space-y-2 border-t border-stone-100 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-bold text-slate-700">
+                  Filtro Múltiple de Colores (coincidencia estricta de todos los colores):
+                </span>
+                {selectedColors.length > 0 && (
+                  <span className="text-[11px] text-blue-900 font-bold bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                    {selectedColors.length} color(es) seleccionado(s)
+                  </span>
+                )}
+              </div>
+
+              {/* Color Chips */}
+              <div className="flex flex-wrap gap-1.5">
+                {ALL_COLORS.filter((c) => !['Bicolor', 'Atigrado', 'Tricolor'].includes(c)).map((c) => {
+                  const isSelected = selectedColors.includes(c);
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => handleToggleColor(c)}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold transition border ${
+                        isSelected
+                          ? 'bg-blue-900 text-white border-blue-900 shadow-sm'
+                          : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100'
+                      }`}
+                    >
+                      {isSelected && '✓ '}
+                      {c}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Compound pattern dropdown & dynamic sub-colors */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 pt-2">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Patrón de Pelaje Especial:</label>
+                  <select
+                    value={compoundPattern}
+                    onChange={(e) => {
+                      setCompoundPattern(e.target.value as any);
+                      if (e.target.value === 'all') {
+                        setFilterSubColor1('all');
+                        setFilterSubColor2('all');
+                        setFilterSubColor3('all');
+                      }
+                    }}
+                    className="w-full border border-stone-300 rounded-xl p-2 bg-stone-50 text-xs"
+                  >
+                    <option value="all">Sin patrón especial</option>
+                    <option value="Bicolor">Bicolor (2 colores)</option>
+                    <option value="Atigrado">Atigrado (2 colores)</option>
+                    <option value="Tricolor">Tricolor (3 colores)</option>
+                  </select>
+                </div>
+
+                {/* Dynamic Sub-color 1 */}
+                {compoundPattern !== 'all' && (
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Color 1 del Patrón:</label>
+                    <select
+                      value={filterSubColor1}
+                      onChange={(e) => setFilterSubColor1(e.target.value)}
+                      className="w-full border border-blue-300 bg-blue-50/40 rounded-xl p-2 text-xs"
+                    >
+                      <option value="all">Cualquier Color 1</option>
+                      {SUB_COLORS.map((sc) => (
+                        <option key={sc} value={sc}>
+                          {sc}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Dynamic Sub-color 2 */}
+                {compoundPattern !== 'all' && (
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Color 2 del Patrón:</label>
+                    <select
+                      value={filterSubColor2}
+                      onChange={(e) => setFilterSubColor2(e.target.value)}
+                      className="w-full border border-blue-300 bg-blue-50/40 rounded-xl p-2 text-xs"
+                    >
+                      <option value="all">Cualquier Color 2</option>
+                      {SUB_COLORS.map((sc) => (
+                        <option key={sc} value={sc}>
+                          {sc}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Dynamic Sub-color 3 */}
+                {compoundPattern === 'Tricolor' && (
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Color 3 del Patrón:</label>
+                    <select
+                      value={filterSubColor3}
+                      onChange={(e) => setFilterSubColor3(e.target.value)}
+                      className="w-full border border-blue-300 bg-blue-50/40 rounded-xl p-2 text-xs"
+                    >
+                      <option value="all">Cualquier Color 3</option>
+                      {SUB_COLORS.map((sc) => (
+                        <option key={sc} value={sc}>
+                          {sc}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
           </>
