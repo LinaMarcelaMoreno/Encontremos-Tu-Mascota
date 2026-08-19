@@ -2,9 +2,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Pets collection: public read, public create, update and delete
+    // Pets collection: public read, public create with validation, update only for resolving.
+    // Delete cerrado desde el cliente (19/8/2026): la coleccion se cura a mano y no hay PITR —
+    // borrar fichas solo por script con cuenta de servicio (Admin SDK ignora estas reglas) y backup previo.
     match /pets/{petId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow create: if request.resource.data.tipo in ['PERDIDO', 'ENCONTRADO']
+                    && request.resource.data.especie is string
+                    && request.resource.data.ciudad is string;
+      allow update: if true;
+      allow delete: if false;
     }
 
     // Alert and system logs
