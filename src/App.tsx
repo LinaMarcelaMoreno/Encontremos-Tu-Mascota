@@ -15,6 +15,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { DailyEmailDigestModal } from './components/DailyEmailDigestModal';
 import { SuccessStories } from './components/SuccessStories';
 import { COLOMBIAN_DEPARTMENTS, checkPetColorMatch, evaluatePetMatch } from './data/colombiaData';
+import { mapPetDoc } from './lib/petMapper';
 
 export default function App() {
   const [pets, setPets] = useState<PetRecord[]>([]);
@@ -135,34 +136,7 @@ export default function App() {
         (snapshot) => {
           const loadedPets: PetRecord[] = [];
           snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
-            loadedPets.push({
-              id: docSnap.id,
-              tipo: data.tipo || 'PERDIDO',
-              estado: data.estado || 'ACTIVO',
-              nombre: data.nombre || 'Sin Nombre',
-              cedula: data.cedula || '',
-              llave: data.llave || '',
-              especie: data.especie || 'Perro',
-              raza: data.raza || 'Mestizo',
-              color: data.color || 'Café',
-              subColores: Array.isArray(data.subColores) ? data.subColores : [],
-              tamano: data.tamano || 'Mediano',
-              departamento: data.departamento || 'Quindío',
-              ciudad: data.ciudad || 'Armenia',
-              ubicacion: data.ubicacion || '',
-              contacto: data.contacto || '',
-              telefono: data.telefono || '',
-              telefonoSecundario: data.telefonoSecundario || '',
-              correo: data.correo || '',
-              foto: data.foto || '',
-              detalles: data.detalles || '',
-              fecha: data.fecha || new Date().toLocaleDateString('es-CO'),
-              fechaEvento: data.fechaEvento || '',
-              createdAt: data.createdAt || Date.now(),
-              resolveToken: data.resolveToken || '',
-              descartados: Array.isArray(data.descartados) ? data.descartados : []
-            });
+            loadedPets.push(mapPetDoc(docSnap.data(), docSnap.id));
           });
 
           // Sort in memory by newest first
@@ -251,33 +225,7 @@ export default function App() {
       const snapshot = await getDocs(petsCol);
       const loaded: PetRecord[] = [];
       snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        loaded.push({
-          id: docSnap.id,
-          tipo: data.tipo,
-          estado: data.estado || 'ACTIVO',
-          nombre: data.nombre,
-          cedula: data.cedula,
-          llave: data.llave,
-          especie: data.especie,
-          raza: data.raza,
-          color: data.color,
-          subColores: Array.isArray(data.subColores) ? data.subColores : [],
-          tamano: data.tamano,
-          departamento: data.departamento,
-          ciudad: data.ciudad,
-          ubicacion: data.ubicacion,
-          contacto: data.contacto,
-          telefono: data.telefono,
-          telefonoSecundario: data.telefonoSecundario || '',
-          correo: data.correo,
-          foto: data.foto,
-          detalles: data.detalles,
-          fecha: data.fecha,
-          fechaEvento: data.fechaEvento || '',
-          createdAt: data.createdAt,
-          resolveToken: data.resolveToken
-        });
+        loaded.push(mapPetDoc(docSnap.data(), docSnap.id));
       });
       setPets(loaded);
 
