@@ -153,10 +153,12 @@ export default function App() {
               ubicacion: data.ubicacion || '',
               contacto: data.contacto || '',
               telefono: data.telefono || '',
+              telefonoSecundario: data.telefonoSecundario || '',
               correo: data.correo || '',
               foto: data.foto || '',
               detalles: data.detalles || '',
               fecha: data.fecha || new Date().toLocaleDateString('es-CO'),
+              fechaEvento: data.fechaEvento || '',
               createdAt: data.createdAt || Date.now(),
               resolveToken: data.resolveToken || '',
               descartados: Array.isArray(data.descartados) ? data.descartados : []
@@ -267,10 +269,12 @@ export default function App() {
           ubicacion: data.ubicacion,
           contacto: data.contacto,
           telefono: data.telefono,
+          telefonoSecundario: data.telefonoSecundario || '',
           correo: data.correo,
           foto: data.foto,
           detalles: data.detalles,
           fecha: data.fecha,
+          fechaEvento: data.fechaEvento || '',
           createdAt: data.createdAt,
           resolveToken: data.resolveToken
         });
