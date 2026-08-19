@@ -5,6 +5,7 @@ import { createServer as createViteServer } from 'vite';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, doc, updateDoc, addDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { GoogleGenAI } from '@google/genai';
+import { mapPetDoc } from './src/lib/petMapper';
 
 // Load Firebase Config safely
 let firebaseConfig: any = {};
@@ -174,34 +175,7 @@ async function getOrFetchPets(forceRefresh = false): Promise<{ pets: any[]; cach
 
     const loadedPets: any[] = [];
     snapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      loadedPets.push({
-        id: docSnap.id,
-        tipo: data.tipo,
-        estado: data.estado || 'ACTIVO',
-        nombre: data.nombre || '',
-        cedula: data.cedula || '',
-        llave: data.llave || '',
-        especie: data.especie || 'Perro',
-        raza: data.raza || '',
-        color: data.color || 'Otro',
-        subColores: Array.isArray(data.subColores) ? data.subColores : [],
-        tamano: data.tamano || 'Mediano',
-        departamento: data.departamento || '',
-        ciudad: data.ciudad || '',
-        ubicacion: data.ubicacion || '',
-        contacto: data.contacto || '',
-        telefono: data.telefono || '',
-        telefonoSecundario: data.telefonoSecundario || '',
-        correo: data.correo || '',
-        foto: data.foto || '',
-        detalles: data.detalles || '',
-        fecha: data.fecha || '',
-        fechaEvento: data.fechaEvento || '',
-        createdAt: data.createdAt || Date.now(),
-        resolveToken: data.resolveToken || '',
-        descartados: Array.isArray(data.descartados) ? data.descartados : []
-      });
+      loadedPets.push(mapPetDoc(docSnap.data(), docSnap.id));
     });
 
     // Sort in memory by createdAt descending
