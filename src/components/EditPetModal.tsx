@@ -264,9 +264,9 @@ export const EditPetModal: React.FC<EditPetModalProps> = ({
 
       let subColores: string[] = [];
       if (color === 'Bicolor' || color === 'Atigrado') {
-        subColores = [subColor1, subColor2];
+        subColores = Array.from(new Set([subColor1, subColor2]));
       } else if (color === 'Tricolor') {
-        subColores = [subColor1, subColor2, subColor3];
+        subColores = Array.from(new Set([subColor1, subColor2, subColor3]));
       }
 
       const updated = await onUpdatePet(pet.id, {

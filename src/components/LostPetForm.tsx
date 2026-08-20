@@ -160,9 +160,9 @@ export const LostPetForm: React.FC<LostPetFormProps> = ({ onSubmitLostPet, exist
 
     let subColores: string[] = [];
     if (color === 'Bicolor' || color === 'Atigrado') {
-      subColores = [subColor1, subColor2].filter(Boolean);
+      subColores = Array.from(new Set([subColor1, subColor2].filter(Boolean)));
     } else if (color === 'Tricolor') {
-      subColores = [subColor1, subColor2, subColor3].filter(Boolean);
+      subColores = Array.from(new Set([subColor1, subColor2, subColor3].filter(Boolean)));
     }
 
     setIsSubmitting(true);
