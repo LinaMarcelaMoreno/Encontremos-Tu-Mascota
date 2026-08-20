@@ -10,6 +10,7 @@ import {
   POPULAR_CAT_BREEDS
 } from '../data/colombiaData';
 import { compressImage } from '../lib/imageCompression';
+import { buildFoundPetKey } from '../lib/petKey';
 import { AlertTriangle, Sparkles, AlertCircle, ArrowRight, HeartHandshake, Check, X, Loader2, Trash2, Calendar, Palette } from 'lucide-react';
 
 interface FoundPetFormProps {
@@ -155,7 +156,7 @@ export const FoundPetForm: React.FC<FoundPetFormProps> = ({ onSubmitFoundPet }) 
         tipo: 'ENCONTRADO',
         nombre: 'Encontrado / Rescatado',
         cedula: 'RESCATISTA',
-        llave: `hallazgo_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        llave: buildFoundPetKey(telefono, photoDataUrl),
         especie,
         raza: finalRaza,
         color,

@@ -364,6 +364,23 @@ export default function App() {
       if (!petData.foto || !petData.foto.trim()) {
         throw new Error('La fotografía de la mascota es obligatoria.');
       }
+
+      // Guarda anti-duplicado: si este mismo hallazgo (mismo teléfono + misma foto)
+      // ya está publicado y activo, no se crea otra ficha; se muestra la que existe.
+      // Cubre el caso real observado: el guardado SÍ entra a Firestore pero el usuario
+      // ve un error y reintenta. Para entonces el listener onSnapshot ya trajo la ficha,
+      // así que aquí se detecta y el reenvío deja de crear copias.
+      const yaPublicada = petData.llave
+        ? pets.find((p) => p.llave === petData.llave && p.estado === 'ACTIVO')
+        : undefined;
+      if (yaPublicada) {
+        setConfirmationPet(yaPublicada);
+        setTraitSearchPet(yaPublicada);
+        handleResetFilters();
+        setViewMode('matches');
+        return true;
+      }
+
       const resolveToken = Math.random().toString(36).substring(2, 10);
       const cleanPayload = sanitizeFirestoreData({
         ...petData,

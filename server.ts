@@ -524,7 +524,13 @@ async function startServer() {
 
       const cleanPhone = (body.telefono || '').replace(/\D/g, '');
       const petName = (body.nombre || (body.tipo === 'ENCONTRADO' ? 'Sin Nombre' : '')).trim();
-      const uniqueKey = `${petName.toLowerCase()}_${cleanPhone}`;
+      // La llave de deduplicacion la calcula el cliente (src/lib/petKey.ts). Para los
+      // ENCONTRADO es telefono + huella de la foto, y hay que respetarla: recalcularla
+      // aqui como nombre_telefono la haria distinta de la que ya esta en la base y la
+      // deteccion de duplicados del fallback no encontraria nada.
+      const uniqueKey = typeof body.llave === 'string' && body.llave.trim()
+        ? body.llave.trim()
+        : `${petName.toLowerCase()}_${cleanPhone}`;
 
       // Check duplicate in memory
       const isDuplicate = petsCache.some(
