@@ -1072,7 +1072,7 @@ REGLAS INFALIBLES DE COLOR, MANTO Y PATRÓN:
         version: '2.5.0',
         description: 'API REST y MCP protegida por tokens de alta velocidad servida desde memoria RAM para la búsqueda, reporte y cruce inteligente de mascotas perdidas y encontradas en Colombia.'
       },
-      servers: [{ url: '/api', description: 'Servidor Local y Contenedor' }],
+      servers: [{ url: 'https://encontremostumascota.co/api', description: 'Produccion' }, { url: '/api', description: 'Local' }],
       components: {
         securitySchemes: {
           ApiKeyAuth: {
@@ -1183,7 +1183,7 @@ REGLAS INFALIBLES DE COLOR, MANTO Y PATRÓN:
         </div>
         <p class="text-stone-600 text-xs">Obtiene todas las mascotas activas o filtradas desde la memoria RAM del servidor.</p>
         <div class="bg-stone-900 text-stone-100 p-3 rounded-xl font-mono text-xs overflow-x-auto">
-          <code>curl -X GET "https://tu-dominio/api/pets?tipo=PERDIDO&ciudad=Armenia&especie=Perro" \
+          <code>curl -X GET "https://encontremostumascota.co/api/pets?tipo=PERDIDO&ciudad=Armenia&especie=Perro" \
   -H "x-api-key: rac_live_tu_token_aqui"</code>
         </div>
       </div>
@@ -1197,7 +1197,7 @@ REGLAS INFALIBLES DE COLOR, MANTO Y PATRÓN:
         </div>
         <p class="text-stone-600 text-xs">Publica una mascota perdida o encontrada. Valida identidad mediante celular/WhatsApp.</p>
         <div class="bg-stone-900 text-stone-100 p-3 rounded-xl font-mono text-xs overflow-x-auto">
-<pre>curl -X POST "https://tu-dominio/api/pets" \
+<pre>curl -X POST "https://encontremostumascota.co/api/pets" \
   -H "Content-Type: application/json" \
   -H "x-api-key: rac_live_tu_token_aqui" \
   -d '{
@@ -1226,7 +1226,7 @@ REGLAS INFALIBLES DE COLOR, MANTO Y PATRÓN:
         </div>
         <p class="text-stone-600 text-xs">Compara una mascota contra todos los reportes opuestos en memoria y devuelve los candidatos con puntuación de afinidad.</p>
         <div class="bg-stone-900 text-stone-100 p-3 rounded-xl font-mono text-xs overflow-x-auto">
-          <code>curl -X POST "https://tu-dominio/api/match" \
+          <code>curl -X POST "https://encontremostumascota.co/api/match" \
   -H "Content-Type: application/json" \
   -H "x-api-key: rac_live_tu_token_aqui" \
   -d '{"petId": "DOC_ID"}'</code>
@@ -1242,7 +1242,7 @@ REGLAS INFALIBLES DE COLOR, MANTO Y PATRÓN:
         </div>
         <p class="text-stone-600 text-xs">Cierra el caso cuando el animal regresa a casa. Requiere el teléfono o correo con el que se registró.</p>
         <div class="bg-stone-900 text-stone-100 p-3 rounded-xl font-mono text-xs overflow-x-auto">
-          <code>curl -X POST "https://tu-dominio/api/pets/ID_MASCOTA/resolve" \
+          <code>curl -X POST "https://encontremostumascota.co/api/pets/ID_MASCOTA/resolve" \
   -H "Content-Type: application/json" \
   -H "x-api-key: rac_live_tu_token_aqui" \
   -d '{"telefono": "3001234567"}'</code>
@@ -1258,7 +1258,7 @@ REGLAS INFALIBLES DE COLOR, MANTO Y PATRÓN:
         </div>
         <p class="text-stone-600 text-xs">Devuelve métricas en tiempo real de mascotas activas, encontradas y tasa de éxito.</p>
         <div class="bg-stone-900 text-stone-100 p-3 rounded-xl font-mono text-xs overflow-x-auto">
-          <code>curl -X GET "https://tu-dominio/api/stats" -H "x-api-key: rac_live_tu_token_aqui"</code>
+          <code>curl -X GET "https://encontremostumascota.co/api/stats" -H "x-api-key: rac_live_tu_token_aqui"</code>
         </div>
       </div>
     </div>
