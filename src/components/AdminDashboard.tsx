@@ -16,6 +16,7 @@ import {
   Search,
   KeyRound,
   Eye,
+  EyeOff,
   RefreshCw,
   Lightbulb,
   MessageCircle,
@@ -78,6 +79,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const isSuperAdmin = activeRole === 'admin';
 
   const [pinInput, setPinInput] = useState('');
+  const [showPinInput, setShowPinInput] = useState(false);
   const [adminPin, setAdminPin] = useState(() => localStorage.getItem('admin_pin') || '1234');
   const [editorPin, setEditorPin] = useState(() => localStorage.getItem('editor_pin') || 'editor2026');
   const [viewerPin, setViewerPin] = useState(() => localStorage.getItem('viewer_pin') || 'consultasvol159');
@@ -88,6 +90,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Password change form state (Only accessible by super admin)
   const [showChangePin, setShowChangePin] = useState(false);
+  const [showCurrentPin, setShowCurrentPin] = useState(false);
+  const [showNewPin, setShowNewPin] = useState(false);
+  const [showConfirmPin, setShowConfirmPin] = useState(false);
   const [targetPinToChange, setTargetPinToChange] = useState<'editor' | 'admin' | 'viewer'>('viewer');
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -473,29 +478,35 @@ ${backendBaseUrl}/api/openapi.json
           </div>
 
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Acceso a Gestión y Consultas</h2>
+            <h2 className="text-xl font-bold text-slate-900">Acceso a Gestión</h2>
             <p className="text-stone-500 text-xs mt-1 leading-relaxed">
-              Ingresa tu clave autorizada. El sistema te otorgará permisos de <strong>Gestión Completa</strong> o de <strong>Solo Lectura (Consultas)</strong> según la clave ingresada.
+              Ingresa tu clave autorizada para acceder al sistema.
             </p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4 text-xs text-left">
             <div>
-              <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1.5">
-                <KeyRound className="w-3.5 h-3.5 text-stone-500" /> Clave de Acceso:
+              <label className="block font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                <KeyRound className="w-3.5 h-3.5 text-stone-500" /> Clave de Acceso Autorizada:
               </label>
-              <input
-                type="password"
-                id="admin-pin-input"
-                required
-                value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
-                placeholder="Ingresa tu clave (ej. consultasvol159 o editor2026)"
-                className="w-full border border-stone-300 rounded-xl p-3 bg-stone-50 text-xs focus:ring-2 focus:ring-blue-900 outline-none"
-              />
-              <div className="mt-2 p-2.5 bg-stone-50 rounded-xl border border-stone-200 text-[11px] text-stone-600 space-y-1">
-                <div>• Perfil Consultas (Solo Lectura): <code>consultasvol159</code></div>
-                <div>• Perfil Editor (Gestión Completa): <code>editor2026</code></div>
+              <div className="relative">
+                <input
+                  type={showPinInput ? 'text' : 'password'}
+                  id="admin-pin-input"
+                  required
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full border border-stone-300 rounded-xl p-3 pr-10 bg-stone-50 text-xs focus:ring-2 focus:ring-blue-900 focus:bg-white outline-none font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPinInput(!showPinInput)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-1"
+                  title={showPinInput ? 'Ocultar clave' : 'Mostrar clave'}
+                >
+                  {showPinInput ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4 text-stone-500" />}
+                </button>
               </div>
             </div>
 
@@ -508,7 +519,7 @@ ${backendBaseUrl}/api/openapi.json
             <button
               type="submit"
               id="admin-login-btn"
-              className="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-3 rounded-xl transition text-xs shadow-sm flex items-center justify-center gap-1.5"
+              className="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-3 rounded-xl transition text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Lock className="w-3.5 h-3.5" />
               <span>Ingresar al Sistema</span>
@@ -738,36 +749,66 @@ ${backendBaseUrl}/api/openapi.json
           <form onSubmit={handleChangePin} className="space-y-3">
             <div>
               <label className="block text-stone-600 font-medium mb-1">Clave Actual de Administrador:</label>
-              <input
-                type="password"
-                required
-                value={currentPin}
-                onChange={(e) => setCurrentPin(e.target.value)}
-                placeholder="Ingresa clave actual de Admin"
-                className="w-full border border-stone-300 rounded-lg p-2 bg-white outline-none"
-              />
+              <div className="relative">
+                <input
+                  type={showCurrentPin ? 'text' : 'password'}
+                  required
+                  value={currentPin}
+                  onChange={(e) => setCurrentPin(e.target.value)}
+                  placeholder="Ingresa clave actual de Admin"
+                  className="w-full border border-stone-300 rounded-lg p-2 pr-9 bg-white outline-none font-mono text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPin(!showCurrentPin)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-0.5"
+                  title={showCurrentPin ? 'Ocultar' : 'Mostrar'}
+                >
+                  {showCurrentPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             </div>
             <div>
               <label className="block text-stone-600 font-medium mb-1">Nueva Clave:</label>
-              <input
-                type="password"
-                required
-                value={newPin}
-                onChange={(e) => setNewPin(e.target.value)}
-                placeholder="Mínimo 4 caracteres"
-                className="w-full border border-stone-300 rounded-lg p-2 bg-white outline-none"
-              />
+              <div className="relative">
+                <input
+                  type={showNewPin ? 'text' : 'password'}
+                  required
+                  value={newPin}
+                  onChange={(e) => setNewPin(e.target.value)}
+                  placeholder="Mínimo 4 caracteres"
+                  className="w-full border border-stone-300 rounded-lg p-2 pr-9 bg-white outline-none font-mono text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPin(!showNewPin)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-0.5"
+                  title={showNewPin ? 'Ocultar' : 'Mostrar'}
+                >
+                  {showNewPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             </div>
             <div>
               <label className="block text-stone-600 font-medium mb-1">Confirmar Nueva Clave:</label>
-              <input
-                type="password"
-                required
-                value={confirmPin}
-                onChange={(e) => setConfirmPin(e.target.value)}
-                placeholder="Repite la nueva clave"
-                className="w-full border border-stone-300 rounded-lg p-2 bg-white outline-none"
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPin ? 'text' : 'password'}
+                  required
+                  value={confirmPin}
+                  onChange={(e) => setConfirmPin(e.target.value)}
+                  placeholder="Repite la nueva clave"
+                  className="w-full border border-stone-300 rounded-lg p-2 pr-9 bg-white outline-none font-mono text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPin(!showConfirmPin)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-0.5"
+                  title={showConfirmPin ? 'Ocultar' : 'Mostrar'}
+                >
+                  {showConfirmPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             </div>
 
             {pinErrorMsg && <p className="text-red-600 font-medium text-[11px] bg-red-50 p-2 rounded border border-red-200">{pinErrorMsg}</p>}
