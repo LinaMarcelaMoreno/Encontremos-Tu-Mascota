@@ -1,8 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Pets collection: public read, public create with validation, update only for resolving.
+
+    // Pets: lectura publica, creacion validada, update restringido, delete cerrado.
+    // Sin Firebase Auth (issue #3) no se puede distinguir admin de atacante; estas reglas
+    // protegen la INTEGRIDAD (campos inmutables, tipos correctos), no la identidad.
     // Delete cerrado desde el cliente (19/8/2026): la coleccion se cura a mano y no hay PITR —
     // borrar fichas solo por script con cuenta de servicio (Admin SDK ignora estas reglas) y backup previo.
     match /pets/{petId} {
@@ -10,26 +12,41 @@ service cloud.firestore {
       allow create: if request.resource.data.tipo in ['PERDIDO', 'ENCONTRADO']
                     && request.resource.data.especie is string
                     && request.resource.data.ciudad is string;
-      allow update: if true;
+      // Los flujos reales (editar ficha, resolver, descartar cruce) nunca tocan estos campos:
+      allow update: if !request.resource.data.diff(resource.data).affectedKeys()
+                        .hasAny(['tipo', 'createdAt', 'resolveToken', 'cedula', 'llave', 'fecha'])
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['estado'])
+                        || request.resource.data.estado in ['ACTIVO', 'RESUELTO'])
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['descartados'])
+                        || request.resource.data.descartados is list);
       allow delete: if false;
     }
 
-    // Alert and system logs
+    // Logs del sistema: la SPA no los usa; solo el server (que no corre en prod). Cerrado.
     match /alert_logs/{logId} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if false;
+      allow write: if false;
     }
 
-    // Suggestions collection
+    // Sugerencias: creacion publica validada, lectura para el panel admin (sin Auth no hay
+    // forma de restringirla), update solo del flag 'atendido', delete permitido (limpieza
+    // de spam desde el panel; datos de bajo valor y con respaldo diario).
     match /suggestions/{sugId} {
       allow read: if true;
-      allow write: if true;
+      allow create: if request.resource.data.mensaje is string
+                    && request.resource.data.mensaje.size() <= 5000
+                    && request.resource.data.atendido == false;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['atendido'])
+                    && request.resource.data.atendido is bool;
+      allow delete: if true;
     }
 
-    // API Tokens collection for developers & MCP integrations
+    // Tokens de la API del bot: son SECRETOS y hoy cualquiera puede leerlos. Cerrado por
+    // completo; se gestionan por script con cuenta de servicio. (El panel de tokens del
+    // AdminDashboard deja de funcionar — aceptado mientras el bot esta pausado.)
     match /api_tokens/{tokenId} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if false;
+      allow write: if false;
     }
   }
 }
