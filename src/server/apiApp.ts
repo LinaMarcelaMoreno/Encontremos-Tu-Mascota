@@ -128,6 +128,13 @@ async function authenticateApiRequest(req: express.Request, res: express.Respons
     });
   }
 
+  // Claves de desarrollo servidas desde env var (Netlify). Formato: "nombre:clave,nombre2:clave2".
+  // Va ANTES del lookup a Firestore porque hoy 'api_tokens' esta cerrada por reglas y siempre falla.
+  const envKeys = (process.env.API_KEYS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (envKeys.some((e) => e.split(':')[1] === tokenToVerify)) {
+    return next();
+  }
+
   const tokens = await getOrFetchApiTokens();
   const matched = tokens.find((t) => t.token === tokenToVerify && t.status === 'ACTIVO');
 
