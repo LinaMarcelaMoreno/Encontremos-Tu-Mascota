@@ -281,8 +281,21 @@ export const normalizeTone = (raw: string): string => {
   if (s.includes('amarill')) return 'amarillo';
   if (s.includes('naranj') || s.includes('roj') || s.includes('fuego')) return 'naranja';
   if (s.includes('crema') || s.includes('beige') || s.includes('marfil') || s.includes('arena')) return 'crema';
+  if (s.includes('carey') || s.includes('calic')) return 'carey';
+  if (s.includes('tabby') || s.includes('atigr') || s.includes('tigr')) return 'atigrado';
   return s;
 };
+
+// Amarillo y dorado son identidades distintas en el registro, pero equivalentes al buscar y cruzar:
+// quien perdió un perro "dorado" debe ver los reportados como "amarillo" y viceversa.
+const TONE_COMPAT_GROUPS: string[][] = [['amarillo', 'dorado']];
+
+/** Dos tonos se consideran equivalentes para búsqueda y cruce (mismo tono o mismo grupo). */
+export const tonesCompatible = (a: string, b: string): boolean =>
+  a === b || TONE_COMPAT_GROUPS.some((g) => g.includes(a) && g.includes(b));
+
+// Etiquetas de patrón: describen distribución, no tono. No cuentan como color...
+const PATTERN_LABELS = ['bicolor', 'tricolor', 'atigrado'];
 
 /**
  * Obtiene el arreglo de todos los tonos asociados a una mascota (color principal + subcolores)
@@ -303,17 +316,24 @@ export function getPetAllColorTones(
   }
 
   const tones: string[] = [];
+  let sawAtigrado = false;
   subs.forEach((s) => {
     const t = normalizeTone(s);
-    if (t) tones.push(t);
+    if (t === 'atigrado') sawAtigrado = true;
+    if (t && !PATTERN_LABELS.includes(t)) tones.push(t);
   });
 
   const mainTone = normalizeTone(mainColor);
-  if (mainTone && !['bicolor', 'tricolor', 'atigrado'].includes(mainTone)) {
+  if (mainTone === 'atigrado') sawAtigrado = true;
+  if (mainTone && !PATTERN_LABELS.includes(mainTone)) {
     tones.push(mainTone);
   }
 
-  return Array.from(new Set(tones));
+  const unique = Array.from(new Set(tones));
+  // ...salvo atigrado/tabby como respaldo: si el animal no registra ningún tono real, el patrón
+  // le sirve de tono para que los tabby-puros puedan cruzar entre sí en vez de ser invisibles.
+  if (unique.length === 0 && sawAtigrado) unique.push('atigrado');
+  return unique;
 }
 
 /**
@@ -364,9 +384,10 @@ export function filterMatchesColorStrict(
   }
 
   // REGLA ESTRICTA AND: Cada uno de los colores requeridos debe estar presente en los tonos de la mascota
+  // (bajo equivalencia: buscar Amarillo también acepta Dorado y viceversa)
   return requiredColors.every((req) => {
     const normReq = normalizeTone(req);
-    return petTones.includes(normReq) || mainColor.toLowerCase() === req.toLowerCase();
+    return petTones.some((t) => tonesCompatible(t, normReq)) || mainColor.toLowerCase() === req.toLowerCase();
   });
 }
 
@@ -383,7 +404,7 @@ export function checkPetColorMatch(
   petBOrSubColoresA?: string[] | { color: string; subColores?: string[] } | string,
   colorBParam?: string,
   subColoresBParam?: string[]
-): { isMatch: boolean; isExact: boolean; score: number; sharedColors: string[]; requiredA: number; requiredB: number } {
+): { isMatch: boolean; isExact: boolean; isExactCompat: boolean; score: number; sharedColors: string[]; requiredA: number; requiredB: number } {
   let colorA = '';
   let subColoresA: string[] = [];
   let colorB = '';
@@ -403,54 +424,33 @@ export function checkPetColorMatch(
     subColoresB = Array.isArray(subColoresBParam) ? subColoresBParam : [];
   }
 
-  // Canonical color tone mapping helper
-  const normalizeTone = (raw: string): string => {
-    const s = (raw || '').trim().toLowerCase();
-    if (!s || s === 'otro') return '';
-    if (s.includes('blanc') || s.includes('nieve')) return 'blanco';
-    if (s.includes('negr') || s.includes('azabache')) return 'negro';
-    if (s.includes('gris') || s.includes('plomo') || s.includes('azul') || s.includes('ceniza')) return 'gris';
-    if (s.includes('caf') || s.includes('marron') || s.includes('marrón') || s.includes('chocolat') || s.includes('castan') || s.includes('castañ')) return 'café';
-    if (s.includes('dorad') || s.includes('amarill') || s.includes('miel') || s.includes('rubio')) return 'dorado';
-    if (s.includes('naranj') || s.includes('roj') || s.includes('fuego')) return 'naranja';
-    if (s.includes('crema') || s.includes('beige') || s.includes('marfil') || s.includes('arena')) return 'crema';
-    return s;
-  };
-
-  const getColorsArray = (col: string, subs: string[]) => {
-    const tones: string[] = [];
-    if (subs && subs.length > 0) {
-      subs.forEach((s) => {
-        const t = normalizeTone(s);
-        if (t) tones.push(t);
-      });
-    }
-    const mainTone = normalizeTone(col);
-    if (mainTone && !['bicolor', 'tricolor', 'atigrado'].includes(mainTone)) {
-      tones.push(mainTone);
-    }
-    return Array.from(new Set(tones));
-  };
-
-  const colorsA = getColorsArray(colorA, subColoresA);
-  const colorsB = getColorsArray(colorB, subColoresB);
+  // Un solo normalizador y una sola extracción de tonos para toda la app (kernel único, issue #4/#5).
+  const colorsA = getPetAllColorTones({ color: colorA, subColores: subColoresA });
+  const colorsB = getPetAllColorTones({ color: colorB, subColores: subColoresB });
 
   // If color information is missing or completely unidentifiable, no automatic color match
   if (colorsA.length === 0 || colorsB.length === 0) {
-    return { isMatch: false, isExact: false, score: 0, sharedColors: [], requiredA: 1, requiredB: 1 };
+    return { isMatch: false, isExact: false, isExactCompat: false, score: 0, sharedColors: [], requiredA: 1, requiredB: 1 };
   }
 
-  const sharedColors = colorsA.filter((c) => colorsB.includes(c));
+  // Compartidos bajo equivalencia (amarillo~dorado cuentan como el mismo tono)
+  const sharedColors = colorsA.filter((c) => colorsB.some((b) => tonesCompatible(c, b)));
   const sharedCount = sharedColors.length;
 
-  // Coincidencia exacta de color si comparten todos y cada uno de los tonos registrados
-  const isExact =
-    sharedCount === colorsA.length &&
-    sharedCount === colorsB.length;
+  // EXACTO estricto: mismos tonos literales (conserva la etiqueta "color idéntico" en la UI)
+  const strictShared = colorsA.filter((c) => colorsB.includes(c)).length;
+  const isExact = strictShared === colorsA.length && strictShared === colorsB.length;
+
+  // Exacto bajo equivalencia: mismos tonos módulo grupo {amarillo,dorado}. Cruza y puntúa
+  // como exacto, pero la UI lo muestra como "compatible" (la identidad registrada difiere).
+  const isExactCompat =
+    colorsA.length === colorsB.length &&
+    colorsA.every((c) => colorsB.some((b) => tonesCompatible(c, b))) &&
+    colorsB.every((b) => colorsA.some((c) => tonesCompatible(c, b)));
 
   let isMatch = false;
 
-  if (isExact) {
+  if (isExact || isExactCompat) {
     isMatch = true;
   } else if (colorsA.length === 1 && colorsB.length === 1) {
     // Ambos tienen 1 solo color pero son distintos (ej. Negro vs Blanco) -> Incompatible
@@ -473,7 +473,7 @@ export function checkPetColorMatch(
     score = sharedCount >= 2 ? 85 : 70;
   }
 
-  return { isMatch, isExact, score, sharedColors, requiredA: isExact ? colorsA.length : 1, requiredB: isExact ? colorsB.length : 1 };
+  return { isMatch, isExact, isExactCompat, score, sharedColors, requiredA: isExact ? colorsA.length : 1, requiredB: isExact ? colorsB.length : 1 };
 }
 
 /**
@@ -609,6 +609,10 @@ export function evaluatePetMatch(
   if (colorCheck.isExact) {
     dataPoints += 10;
     reasons.push(`Color idéntico en registro (${formatPetColorDisplay(lost.color as any, lost.subColores as any)})`);
+  } else if (colorCheck.isExactCompat) {
+    // Mismos tonos módulo grupo amarillo~dorado: puntúa como exacto, se etiqueta como equivalente
+    dataPoints += 10;
+    reasons.push(`Colores equivalentes (${colorCheck.sharedColors.join(', ')})`);
   } else if (colorCheck.sharedColors.length > 0) {
     dataPoints += 4;
     reasons.push(`Colores compatibles (${colorCheck.sharedColors.join(', ')})`);
@@ -656,11 +660,15 @@ export function filterMatchesColor(
   if (petCol === sel) return true;
 
   // If pet has sub-colors and user selected one of those sub-colors
-  if (subColores && subColores.length > 0) {
-    return subColores.some((c) => c.trim().toLowerCase() === sel);
+  if (subColores && subColores.length > 0 && subColores.some((c) => c.trim().toLowerCase() === sel)) {
+    return true;
   }
 
-  return false;
+  // Búsqueda ampliada por tono normalizado: "Dorado" también muestra amarillos (y viceversa),
+  // y el texto libre viejo (ej. "Amarillo/beige") aparece al filtrar por su tono.
+  const selTone = normalizeTone(selected);
+  if (!selTone) return false;
+  return getPetAllColorTones({ color, subColores }).some((t) => tonesCompatible(t, selTone));
 }
 
 export const ALL_SIZES = [
