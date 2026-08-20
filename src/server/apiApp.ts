@@ -3,6 +3,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, doc, updateDoc, addDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { GoogleGenAI } from '@google/genai';
 import { mapPetDoc } from '../lib/petMapper';
+import { evaluatePetMatch, hasValidPetPhoto } from '../data/colombiaData';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -182,143 +183,26 @@ async function getOrFetchPets(forceRefresh = false): Promise<{ pets: any[]; cach
   }
 }
 
-// Helper: Check color matching rule requested by user:
-// 1 or 2 colors -> at least 1 match
-// 3 colors -> at least 2 match
-function checkPetColorMatch(p1: any, p2: any) {
-  const norm = (s: string) => (s || '').trim().toLowerCase();
-  const normalizeTone = (raw: string): string => {
-    const s = (raw || '').trim().toLowerCase();
-    if (!s || s === 'otro') return '';
-    if (s.includes('blanc') || s.includes('nieve')) return 'blanco';
-    if (s.includes('negr') || s.includes('azabache')) return 'negro';
-    if (s.includes('gris') || s.includes('plomo') || s.includes('azul') || s.includes('ceniza')) return 'gris';
-    if (s.includes('caf') || s.includes('marron') || s.includes('marrón') || s.includes('chocolat') || s.includes('castan') || s.includes('castañ')) return 'café';
-    if (s.includes('dorad') || s.includes('amarill') || s.includes('miel') || s.includes('rubio')) return 'dorado';
-    if (s.includes('naranj') || s.includes('roj') || s.includes('fuego')) return 'naranja';
-    if (s.includes('crema') || s.includes('beige') || s.includes('marfil') || s.includes('arena')) return 'crema';
-    return s;
-  };
-
-  const getColors = (pet: any) => {
-    const tones: string[] = [];
-    if (Array.isArray(pet.subColores) && pet.subColores.length > 0) {
-      pet.subColores.forEach((s: string) => {
-        const t = normalizeTone(s);
-        if (t) tones.push(t);
-      });
-    }
-    const mainTone = normalizeTone(pet.color || '');
-    if (mainTone && !['bicolor', 'tricolor', 'atigrado'].includes(mainTone)) {
-      tones.push(mainTone);
-    }
-    return Array.from(new Set(tones));
-  };
-
-  const c1 = getColors(p1);
-  const c2 = getColors(p2);
-  if (c1.length === 0 || c2.length === 0) return { isMatch: false, isExact: false, shared: [] };
-
-  const shared = c1.filter((c) => c2.includes(c));
-  const isExact = shared.length === c1.length && shared.length === c2.length;
-
-  let isMatch = false;
-  if (isExact) {
-    isMatch = true;
-  } else if (c1.length === 1 && c2.length === 1) {
-    isMatch = false;
-  } else if (c1.length === 2 && c2.length === 2) {
-    isMatch = shared.length === 2;
-  } else if (c1.length >= 3 || c2.length >= 3) {
-    isMatch = shared.length >= 2;
-  } else {
-    isMatch = shared.length >= 1;
-  }
-
-  return { isMatch, isExact, shared };
-}
-
-// Helper: Check if pet has a real photo (exclude empty/black placeholder records from matches)
-function hasValidPetPhoto(pet?: any): boolean {
-  if (!pet || !pet.foto) return false;
-  const f = typeof pet.foto === 'string' ? pet.foto.trim() : '';
-  if (!f || f === 'null' || f === 'undefined') return false;
-  if (f.startsWith('data:image/') || f.startsWith('http://') || f.startsWith('https://')) {
-    return f.length > 50;
-  }
-  return f.length > 20;
-}
-
-// Helper: Calculate cross-matching score and affinity
+// Helper: Calculate cross-matching score and affinity.
+// Kernel único (issue #4/#5): delega en evaluatePetMatch de colombiaData — este wrapper solo
+// aporta el requisito PERDIDO vs ENCONTRADO y la traducción a etiquetas EXACTO/ALTO/MEDIO.
 function calculateMatchScore(p1: any, p2: any): { score: 'EXACTO' | 'ALTO' | 'MEDIO' | null; points: number; dataPoints: number; reasons: string[]; isExactMatch: boolean } {
-  // Exclude records without valid photos from matching
-  if (!hasValidPetPhoto(p1) || !hasValidPetPhoto(p2)) {
-    return { score: null, points: 0, dataPoints: 0, reasons: [], isExactMatch: false };
-  }
-
   // Opposites required: PERDIDO vs ENCONTRADO
   if (p1.tipo === p2.tipo) return { score: null, points: 0, dataPoints: 0, reasons: [], isExactMatch: false };
-  // Same species required
-  if (p1.especie?.toLowerCase() !== p2.especie?.toLowerCase()) return { score: null, points: 0, dataPoints: 0, reasons: [], isExactMatch: false };
 
-  const colorCheck = checkPetColorMatch(p1, p2);
-  if (!colorCheck.isMatch) {
-    return { score: null, points: 0, dataPoints: 0, reasons: [], isExactMatch: false };
-  }
-
-  const norm = (s: string) => (s || '').trim().toLowerCase();
-  const sameDept = Boolean(p1.departamento && p2.departamento && norm(p1.departamento) === norm(p2.departamento));
-  const sameCity = Boolean(p1.ciudad && p2.ciudad && norm(p1.ciudad) === norm(p2.ciudad));
-  const sameSize = Boolean(p1.tamano && p2.tamano && norm(p1.tamano) === norm(p2.tamano));
-
-  const normBreedA = norm(p1.raza).replace(/mestizo|común europeo|comun europeo/g, 'criollo');
-  const normBreedB = norm(p2.raza).replace(/mestizo|común europeo|comun europeo/g, 'criollo');
-  const sameBreed = Boolean(
-    (p1.raza && p2.raza && norm(p1.raza) === norm(p2.raza)) ||
-    normBreedA === normBreedB ||
-    (normBreedA.includes('criollo') && normBreedB.includes('criollo'))
-  );
-
-  // Exact Match Rule en datos: departamento, ciudad/municipio, especie, raza y color 100% iguales
-  const isExactDataMatch = Boolean(sameDept && sameCity && sameBreed && sameSize && colorCheck.isExact);
-
-  const reasons: string[] = [];
-  let dataPoints = 0; // 0 to 70
-
-  if (sameDept) {
-    dataPoints += 20;
-    reasons.push(`Mismo departamento (${p1.departamento})`);
-  }
-  if (sameCity) {
-    dataPoints += 15;
-    reasons.push(`Mismo municipio (${p1.ciudad})`);
-  }
-  if (sameBreed) {
-    dataPoints += 15;
-    reasons.push(`Misma raza (${p1.raza || 'Criollo'})`);
-  }
-  if (sameSize) {
-    dataPoints += 10;
-    reasons.push(`Mismo tamaño (${p1.tamano})`);
-  }
-  if (colorCheck.isExact) {
-    dataPoints += 10;
-    reasons.push(`Color 100% idéntico`);
-  } else if (colorCheck.shared.length > 0) {
-    dataPoints += 4;
-    reasons.push(`Colores compatibles (${colorCheck.shared.join(', ')})`);
-  }
+  const [lost, found] = p1.tipo === 'PERDIDO' ? [p1, p2] : [p2, p1];
+  const r = evaluatePetMatch(lost, found);
 
   let score: 'EXACTO' | 'ALTO' | 'MEDIO' | null = null;
-  if (isExactDataMatch) {
+  if (r.isExactMatch) {
     score = 'EXACTO';
-  } else if (dataPoints >= 55) {
+  } else if (r.dataPoints >= 55) {
     score = 'ALTO';
-  } else if (dataPoints >= 45) {
+  } else if (r.dataPoints >= 45) {
     score = 'MEDIO';
   }
 
-  return { score, points: dataPoints, dataPoints, reasons, isExactMatch: isExactDataMatch };
+  return { score, points: r.dataPoints, dataPoints: r.dataPoints, reasons: r.reasons, isExactMatch: r.isExactMatch };
 }
 
 
