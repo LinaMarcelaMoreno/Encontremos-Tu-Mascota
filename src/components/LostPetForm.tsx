@@ -80,7 +80,7 @@ export const LostPetForm: React.FC<LostPetFormProps> = ({ onSubmitLostPet, exist
       setCompressionInfo('Comprimiendo y optimizando fotografía en alta resolución...');
       setErrorMessage(null);
 
-      const result = await compressImage(file, 800, 0.8);
+      const result = await compressImage(file, 640, 0.65);
       setPhotoDataUrl(result.dataUrl);
       setCompressionInfo(`⚡ Foto procesada exitosamente: ${result.originalSizeKb} KB → ${result.compressedSizeKb} KB`);
 

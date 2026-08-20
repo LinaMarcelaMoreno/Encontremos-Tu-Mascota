@@ -241,7 +241,7 @@ export const EditPetModal: React.FC<EditPetModalProps> = ({
       setCompressionInfo('Comprimiendo y procesando fotografía...');
       setActionError('');
 
-      const result = await compressImage(file, 800, 0.8);
+      const result = await compressImage(file, 640, 0.65);
       setFoto(result.dataUrl);
       setCompressionInfo(`⚡ Foto optimizada (${result.compressedSizeKb} KB)`);
     } catch (err: any) {
