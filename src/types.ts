@@ -51,6 +51,9 @@ export interface PetRecord {
   createdAt: number; // Unix timestamp
   resolveToken: string;
   descartados?: string[]; // IDs de animales encontrados descartados por el dueño
+  duplicado?: boolean; // Marcado por la comunidad como posible ficha repetida (revisión manual pendiente)
+  duplicadoVotos?: number; // Cuántas personas lo marcaron; sirve para priorizar la revisión
+  duplicadoUltimoAt?: number; // Unix timestamp de la última marca
 }
 
 export interface MatchPair {

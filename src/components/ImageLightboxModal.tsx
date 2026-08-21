@@ -1,14 +1,16 @@
 import React, { useEffect } from 'react';
 import { X, ZoomIn, MapPin, Tag, Calendar, User, Phone, Share2, Sparkles } from 'lucide-react';
 import { PetRecord } from '../types';
+import { MarcarDuplicadoButton } from './MarcarDuplicadoButton';
 
 interface ImageLightboxModalProps {
   pet: PetRecord | null;
   onClose: () => void;
   onSearchByTraits?: (pet: PetRecord) => void;
+  onToggleDuplicado?: (petId: string, marcar: boolean) => Promise<void>;
 }
 
-export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({ pet, onClose, onSearchByTraits }) => {
+export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({ pet, onClose, onSearchByTraits, onToggleDuplicado }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -193,6 +195,12 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({ pet, onC
             >
               <X className="w-4 h-4" /> Cerrar Detalle
             </button>
+
+            {/* Marca comunitaria de ficha repetida: discreta, al final y sin competir
+                con las acciones que si ayudan a reunir a la mascota con su familia. */}
+            <div className="pt-1 flex justify-center">
+              <MarcarDuplicadoButton pet={pet} onToggleDuplicado={onToggleDuplicado} variant="inline" />
+            </div>
           </div>
         </div>
       </div>

@@ -18,7 +18,19 @@ service cloud.firestore {
                     && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['estado'])
                         || request.resource.data.estado in ['ACTIVO', 'RESUELTO'])
                     && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['descartados'])
-                        || request.resource.data.descartados is list);
+                        || request.resource.data.descartados is list)
+                    // Marca publica de posible duplicado (21/8/2026). Cualquiera puede
+                    // levantarla porque no hay Auth; solo alimenta la revision manual y
+                    // nunca oculta la ficha. Acotamos tipo y rango para que el campo no
+                    // sirva de vertedero: bool + entero 0..999 + timestamp.
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['duplicado'])
+                        || request.resource.data.duplicado is bool)
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['duplicadoVotos'])
+                        || (request.resource.data.duplicadoVotos is int
+                            && request.resource.data.duplicadoVotos >= 0
+                            && request.resource.data.duplicadoVotos <= 999))
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['duplicadoUltimoAt'])
+                        || request.resource.data.duplicadoUltimoAt is int);
       allow delete: if false;
     }
 

@@ -418,7 +418,7 @@ async function startServer() {
       const { pets, cached } = await getOrFetchPets(forceRefresh);
 
       let result = [...pets];
-      const { tipo, ciudad, departamento, especie, estado, color, tamano, q, limit, offset } = req.query;
+      const { tipo, ciudad, departamento, especie, estado, color, tamano, q, duplicado, limit, offset } = req.query;
 
       if (tipo && typeof tipo === 'string') {
         result = result.filter((p) => p.tipo?.toUpperCase() === tipo.toUpperCase());
@@ -451,6 +451,17 @@ async function startServer() {
             (p.ubicacion || '').toLowerCase().includes(queryTerm) ||
             (p.contacto || '').toLowerCase().includes(queryTerm)
         );
+      }
+
+      // Fichas que la comunidad marco como posible repetida (revision manual pendiente).
+      // ?duplicado=true trae solo las marcadas, ordenadas por cuantas personas las marcaron;
+      // ?duplicado=false trae solo las limpias.
+      if (duplicado && typeof duplicado === 'string') {
+        const quiereMarcadas = duplicado.toLowerCase() === 'true' || duplicado === '1';
+        result = result.filter((p) => Boolean(p.duplicado) === quiereMarcadas);
+        if (quiereMarcadas) {
+          result.sort((a, b) => (b.duplicadoVotos || 0) - (a.duplicadoVotos || 0));
+        }
       }
 
       const totalFiltered = result.length;

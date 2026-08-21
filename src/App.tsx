@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, getDocs, increment } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { PetRecord, ActiveTab, GalleryViewMode, PetStatus, SuggestionRecord, UserRole } from './types';
 import { Navbar } from './components/Navbar';
@@ -625,6 +625,49 @@ export default function App() {
     }
   };
 
+  // Handler: Marcar / desmarcar una ficha como posible duplicado (accion publica)
+  //
+  // Solo levanta una bandera para revision manual: NUNCA oculta ni borra la ficha. El
+  // contador usa increment() para que dos personas marcando a la vez no se pisen; el flag
+  // 'duplicado' se calcula desde el estado local, asi que puede quedar momentaneamente
+  // desfasado bajo concurrencia y el listener en vivo lo corrige. Es una pista para
+  // priorizar la curaduria, no un dato duro.
+  const handleToggleDuplicado = async (petId: string, marcar: boolean) => {
+    const pet = pets.find((p) => p.id === petId);
+    const votosActuales = pet?.duplicadoVotos || 0;
+    const votosEstimados = marcar ? votosActuales + 1 : Math.max(0, votosActuales - 1);
+
+    // Actualizacion optimista para que el boton responda de inmediato
+    setPets((prev) =>
+      prev.map((p) =>
+        p.id === petId
+          ? { ...p, duplicado: votosEstimados > 0, duplicadoVotos: votosEstimados }
+          : p
+      )
+    );
+
+    try {
+      const petDocRef = doc(db, 'pets', petId);
+      await updateDoc(petDocRef, {
+        duplicado: votosEstimados > 0,
+        duplicadoVotos: increment(marcar ? 1 : -1),
+        duplicadoUltimoAt: Date.now()
+      });
+      triggerServerCacheInvalidate();
+    } catch (error) {
+      console.error('Error marcando duplicado in Firestore:', error);
+      // Revertir el optimismo y avisar al boton para que restaure su propio estado
+      setPets((prev) =>
+        prev.map((p) =>
+          p.id === petId
+            ? { ...p, duplicado: votosActuales > 0, duplicadoVotos: votosActuales }
+            : p
+        )
+      );
+      throw error;
+    }
+  };
+
   // Handler: Navegar y cruzar automáticamente en Modo Cruce por los rasgos de una mascota
   const handleSearchByTraits = (pet: PetRecord) => {
     setTraitSearchPet(pet);
@@ -704,6 +747,7 @@ export default function App() {
                 onOpenEditModal={(pet) => setEditPet(pet)}
                 onReportLostClick={() => setActiveTab('lost')}
                 onToggleDescarte={handleToggleDescarte}
+                onToggleDuplicado={handleToggleDuplicado}
                 traitSearchPet={traitSearchPet}
                 onClearTraitPet={() => setTraitSearchPet(null)}
               />
@@ -747,9 +791,10 @@ export default function App() {
 
       {/* Lightbox High-Resolution Zoom Modal */}
       <ImageLightboxModal
-        pet={lightboxPet}
+        pet={lightboxPet ? pets.find((p) => p.id === lightboxPet.id) || lightboxPet : null}
         onClose={() => setLightboxPet(null)}
         onSearchByTraits={handleSearchByTraits}
+        onToggleDuplicado={handleToggleDuplicado}
       />
 
       {/* Confirmation Relief Modal */}

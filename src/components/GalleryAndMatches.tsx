@@ -14,6 +14,7 @@ import {
   evaluatePetMatch,
   hasValidPetPhoto
 } from '../data/colombiaData';
+import { MarcarDuplicadoButton } from './MarcarDuplicadoButton';
 import {
   Search,
   Sparkles,
@@ -69,6 +70,7 @@ interface GalleryAndMatchesProps {
   onOpenEditModal: (pet: PetRecord) => void;
   onReportLostClick: () => void;
   onToggleDescarte?: (lostPetId: string, foundPetId: string) => Promise<void>;
+  onToggleDuplicado?: (petId: string, marcar: boolean) => Promise<void>;
   traitSearchPet?: PetRecord | null;
   onClearTraitPet?: () => void;
 }
@@ -93,6 +95,7 @@ export const GalleryAndMatches: React.FC<GalleryAndMatchesProps> = ({
   onOpenEditModal,
   onReportLostClick,
   onToggleDescarte,
+  onToggleDuplicado,
   traitSearchPet,
   onClearTraitPet
 }) => {
@@ -1323,6 +1326,7 @@ export const GalleryAndMatches: React.FC<GalleryAndMatchesProps> = ({
                                       >
                                         <Share2 className="w-3.5 h-3.5" />
                                       </a>
+                                      <MarcarDuplicadoButton pet={found} onToggleDuplicado={onToggleDuplicado} variant="inline" />
                                     </div>
 
                                     {onToggleDescarte && (
@@ -1554,6 +1558,7 @@ export const GalleryAndMatches: React.FC<GalleryAndMatchesProps> = ({
                                 >
                                   <Phone className="w-3 h-3" /> Contactar a la Familia
                                 </a>
+                                <MarcarDuplicadoButton pet={lost} onToggleDuplicado={onToggleDuplicado} variant="inline" />
                               </div>
                             </div>
                           );
@@ -1762,6 +1767,10 @@ export const GalleryAndMatches: React.FC<GalleryAndMatchesProps> = ({
                               <Phone className="w-3 h-3" /> Llamar
                             </a>
                           </div>
+
+                          <div className="flex justify-end">
+                            <MarcarDuplicadoButton pet={pair.lost} onToggleDuplicado={onToggleDuplicado} variant="inline" />
+                          </div>
                         </div>
 
                         {/* Right: Encontrado */}
@@ -1815,6 +1824,10 @@ export const GalleryAndMatches: React.FC<GalleryAndMatchesProps> = ({
                             >
                               <Phone className="w-3 h-3" /> Llamar
                             </a>
+                          </div>
+
+                          <div className="flex justify-end">
+                            <MarcarDuplicadoButton pet={pair.found} onToggleDuplicado={onToggleDuplicado} variant="inline" />
                           </div>
                         </div>
                       </div>
@@ -2015,6 +2028,8 @@ export const GalleryAndMatches: React.FC<GalleryAndMatchesProps> = ({
                           <span>Editar / Cerrar</span>
                         </button>
                       </div>
+
+                      <MarcarDuplicadoButton pet={p} onToggleDuplicado={onToggleDuplicado} variant="card" />
                     </div>
                   </div>
                 );

@@ -9,7 +9,7 @@ import { PetRecord } from '../types';
  * al editar una ficha porque un mapeo los omitía).
  *
  * REGLA: no dejar caer ningún campo aquí. Los campos opcionales de PetRecord
- * (cedula, subColores, telefonoSecundario, fechaEvento, descartados) NO producen error
+ * (cedula, subColores, telefonoSecundario, fechaEvento, descartados, duplicado*) NO producen error
  * de TypeScript si se omiten, así que la única garantía contra otro DAT-2 es que este
  * mapeo —el único— los incluya siempre.
  *
@@ -42,6 +42,9 @@ export function mapPetDoc(data: any, id: string): PetRecord {
     fechaEvento: data.fechaEvento || '',
     createdAt: data.createdAt || Date.now(),
     resolveToken: data.resolveToken || '',
-    descartados: Array.isArray(data.descartados) ? data.descartados : []
+    descartados: Array.isArray(data.descartados) ? data.descartados : [],
+    duplicado: data.duplicado === true,
+    duplicadoVotos: typeof data.duplicadoVotos === 'number' ? data.duplicadoVotos : 0,
+    duplicadoUltimoAt: typeof data.duplicadoUltimoAt === 'number' ? data.duplicadoUltimoAt : 0
   };
 }
