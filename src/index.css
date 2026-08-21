@@ -1,6 +1,34 @@
 @import "tailwindcss";
 
 @layer base {
+  /* Tailwind v4 quito el `cursor: pointer` que su preflight de v3 le ponia a los
+     <button>, asi que TODOS los botones de la app quedaron con la flecha normal y no
+     se sentian clickeables. Se restaura aqui, una sola vez, en vez de repetir
+     `cursor-pointer` en cada boton. */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  summary {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role='button'][aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+
+  /* Mismo problema en los controles de los formularios de reporte. */
+  input[type='checkbox'],
+  input[type='radio'],
+  select {
+    cursor: pointer;
+  }
+
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    cursor: not-allowed;
+  }
+
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   }
